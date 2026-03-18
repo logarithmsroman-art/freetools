@@ -1,0 +1,11 @@
+name = "freetools"
+compatibility_date = "2024-11-20"
+compatibility_flags = ["nodejs_compat"]
+
+[site]
+bucket = ".next"
+
+[vars]
+NEXT_PUBLIC_SUPABASE_URL = "https://commddwzqzeufnlrkgrj.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvbW1kZHd6cXpldWZubHJrZ3JqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3ODgxNzUsImV4cCI6MjA4OTM2NDE3NX0.SL4Z_LLUnHqelzmPd5yI9ox4W9vN9yLWI1oINNJYt0o"
+# GEMINI_API_KEY will be pulled from Cloudflare Dashboard Secrets for security
