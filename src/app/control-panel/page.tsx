@@ -31,17 +31,17 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
   const firstOfLastMonth = new Date(todayDate.getFullYear(), todayDate.getMonth() - 1, 1).toISOString()
   const lastOfLastMonth = new Date(todayDate.getFullYear(), todayDate.getMonth(), 0, 23, 59, 59).toISOString()
 
-  const { count: visitorsToday } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).eq('action_name', 'Page View').gte('created_at', todayStr)
-  const { count: usageToday } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).neq('action_name', 'Page View').gte('created_at', todayStr)
+  const { count: visitorsToday } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).eq('action', 'Page View').gte('created_at', todayStr)
+  const { count: usageToday } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).neq('action', 'Page View').gte('created_at', todayStr)
 
-  const { count: visitorsYesterday } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).eq('action_name', 'Page View').gte('created_at', yesterdayStr).lt('created_at', todayStr)
-  const { count: usageYesterday } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).neq('action_name', 'Page View').gte('created_at', yesterdayStr).lt('created_at', todayStr)
+  const { count: visitorsYesterday } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).eq('action', 'Page View').gte('created_at', yesterdayStr).lt('created_at', todayStr)
+  const { count: usageYesterday } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).neq('action', 'Page View').gte('created_at', yesterdayStr).lt('created_at', todayStr)
 
-  const { count: visitorsThisMonth } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).eq('action_name', 'Page View').gte('created_at', firstOfThisMonth)
-  const { count: usageThisMonth } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).neq('action_name', 'Page View').gte('created_at', firstOfThisMonth)
+  const { count: visitorsThisMonth } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).eq('action', 'Page View').gte('created_at', firstOfThisMonth)
+  const { count: usageThisMonth } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).neq('action', 'Page View').gte('created_at', firstOfThisMonth)
 
-  const { count: visitorsLastMonth } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).eq('action_name', 'Page View').gte('created_at', firstOfLastMonth).lte('created_at', lastOfLastMonth)
-  const { count: usageLastMonth } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).neq('action_name', 'Page View').gte('created_at', firstOfLastMonth).lte('created_at', lastOfLastMonth)
+  const { count: visitorsLastMonth } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).eq('action', 'Page View').gte('created_at', firstOfLastMonth).lte('created_at', lastOfLastMonth)
+  const { count: usageLastMonth } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).neq('action', 'Page View').gte('created_at', firstOfLastMonth).lte('created_at', lastOfLastMonth)
   
   // Custom Date Range for the Tools Breakdown (defaults to this month)
   const activeStart = filterStart ? new Date(filterStart).toISOString() : firstOfThisMonth
