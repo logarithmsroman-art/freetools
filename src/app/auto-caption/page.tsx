@@ -322,7 +322,7 @@ export default function AutoCaption() {
 }
 
 // ─── Caption Overlay on Video ─────────────────────────────────────────────────
-function CaptionOverlay({ caption, style, videoRef }: { caption: Caption; style: CaptionStyle; videoRef?: React.RefObject<HTMLVideoElement> }) {
+function CaptionOverlay({ caption, style, videoRef }: { caption: Caption; style: CaptionStyle; videoRef?: React.RefObject<HTMLVideoElement | null> }) {
   const [scale, setScale] = useState(1);
   const [vidRect, setVidRect] = useState({ top: 0, height: '100%' });
 
