@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { QRCodeCanvas } from 'qrcode.react'
 import BackButton from '@/components/BackButton'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 export default function QRCodeCreator() {
   const [value, setValue] = useState('https://freetool.com')
@@ -13,6 +14,7 @@ export default function QRCodeCreator() {
 
   const downloadQR = () => {
     if (!qrRef.current) return
+    trackToolUsage('QR Code Downloaded')
     const canvas = qrRef.current.querySelector('canvas')
     if (!canvas) return
     const url = canvas.toDataURL("image/png")

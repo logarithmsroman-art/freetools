@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 const CURRENCIES = [
   { symbol: '$', code: 'USD', name: 'US Dollar' },
@@ -146,7 +147,7 @@ export default function ReceiptGenerator() {
            </div>
 
            <button 
-             onClick={() => window.print()}
+             onClick={() => { trackToolUsage('Receipt Exported'); window.print(); }}
              className="btn-primary" 
              style={{ width: "100%", marginTop: "2rem", height: "3.5rem" }}
            >

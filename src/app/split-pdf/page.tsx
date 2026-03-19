@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { PDFDocument } from 'pdf-lib'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 export default function SplitPDF() {
   const [file, setFile] = useState<File | null>(null)
@@ -22,6 +23,7 @@ export default function SplitPDF() {
 
   const splitPDF = async () => {
     if (!file || !range) return
+    trackToolUsage('PDF Split')
     setLoading(true)
     try {
       const bytes = await file.arrayBuffer()

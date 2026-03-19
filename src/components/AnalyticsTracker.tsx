@@ -37,3 +37,16 @@ export default function AnalyticsTracker() {
 
   return null
 }
+
+export const trackToolUsage = async (actionName: string) => {
+  const supabase = createClient()
+  const shadowId = localStorage.getItem('freetool_shadow_id')
+  
+  await supabase.from('analytics_events').insert({
+    shadow_user_id: shadowId,
+    action: actionName, // e.g., 'Video Exported', 'ID Generated', 'PDF Compressed'
+    tool_name: window.location.pathname.replace('/', '') || 'Home Page',
+    referrer: document.referrer || 'Direct',
+    device: /Mobi|Android/i.test(navigator.userAgent) ? 'Mobile' : 'Desktop'
+  })
+}

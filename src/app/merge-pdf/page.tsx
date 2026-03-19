@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { PDFDocument } from 'pdf-lib'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 export default function MergePDF() {
   const [files, setFiles] = useState<File[]>([])
@@ -15,6 +16,7 @@ export default function MergePDF() {
 
   const mergePDFs = async () => {
     if (files.length < 2) return
+    trackToolUsage('PDFs Merged')
     setLoading(true)
     try {
       const mergedPdf = await PDFDocument.create()

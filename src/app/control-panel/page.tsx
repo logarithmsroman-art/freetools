@@ -4,8 +4,11 @@ import { TOOLS } from '@/data/tools'
 import { togglePopularity, updateToolLock, saveAnnouncement, toggleAnnouncement } from './actions'
 import Link from 'next/link'
 
-export default async function AdminDashboard({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const tab = (await searchParams).tab || 'popular'
+export default async function AdminDashboard({ searchParams }: { searchParams: Promise<{ tab?: string, start?: string, end?: string }> }) {
+  const p = await searchParams
+  const tab = p.tab || 'popular'
+  const filterStart = p.start
+  const filterEnd = p.end
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/secret-admin-door')
@@ -16,14 +19,48 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
 
   const { data: announcements } = await supabase.from('site_announcements').select('*').order('created_at', { ascending: false })
 
-  // Analytics Stats (Simplified for MVP)
-  const today = new Date().toISOString().split('T')[0]
+  // --- Analytics Stats Logic ---
+  const todayDate = new Date()
+  const todayStr = todayDate.toISOString().split('T')[0]
+  
   const yesterdayDate = new Date()
   yesterdayDate.setDate(yesterdayDate.getDate() - 1)
-  const yesterday = yesterdayDate.toISOString().split('T')[0]
+  const yesterdayStr = yesterdayDate.toISOString().split('T')[0]
 
-  const { count: viewsToday } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).gte('created_at', today)
-  const { count: viewsYesterday } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).gte('created_at', yesterday).lt('created_at', today)
+  const firstOfThisMonth = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1).toISOString()
+  const firstOfLastMonth = new Date(todayDate.getFullYear(), todayDate.getMonth() - 1, 1).toISOString()
+  const lastOfLastMonth = new Date(todayDate.getFullYear(), todayDate.getMonth(), 0, 23, 59, 59).toISOString()
+
+  const { count: visitorsToday } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).eq('action_name', 'Page View').gte('created_at', todayStr)
+  const { count: usageToday } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).neq('action_name', 'Page View').gte('created_at', todayStr)
+
+  const { count: visitorsYesterday } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).eq('action_name', 'Page View').gte('created_at', yesterdayStr).lt('created_at', todayStr)
+  const { count: usageYesterday } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).neq('action_name', 'Page View').gte('created_at', yesterdayStr).lt('created_at', todayStr)
+
+  const { count: visitorsThisMonth } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).eq('action_name', 'Page View').gte('created_at', firstOfThisMonth)
+  const { count: usageThisMonth } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).neq('action_name', 'Page View').gte('created_at', firstOfThisMonth)
+
+  const { count: visitorsLastMonth } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).eq('action_name', 'Page View').gte('created_at', firstOfLastMonth).lte('created_at', lastOfLastMonth)
+  const { count: usageLastMonth } = await supabase.from('analytics_events').select('*', { count: 'exact', head: true }).neq('action_name', 'Page View').gte('created_at', firstOfLastMonth).lte('created_at', lastOfLastMonth)
+  
+  // Custom Date Range for the Tools Breakdown (defaults to this month)
+  const activeStart = filterStart ? new Date(filterStart).toISOString() : firstOfThisMonth
+  
+  // To include the entirety of the end day, we add 23:59:59 to it if it's a simple YYYY-MM-DD
+  const activeEndObj = filterEnd ? new Date(filterEnd) : new Date()
+  if (filterEnd) activeEndObj.setHours(23, 59, 59, 999)
+  const activeEnd = activeEndObj.toISOString()
+
+  let toolViews: { tool: string, views: number }[] = []
+  let toolUsage: { tool: string, views: number }[] = []
+  if (tab === 'stats') {
+    const [{ data: vData }, { data: uData }] = await Promise.all([
+      supabase.rpc('get_analytics_summary', { start_d: activeStart, end_d: activeEnd, is_usage: false }),
+      supabase.rpc('get_analytics_summary', { start_d: activeStart, end_d: activeEnd, is_usage: true })
+    ])
+    toolViews = vData || []
+    toolUsage = uData || []
+  }
 
   const SidebarItem = ({ name, icon, id }: { name: string, icon: string, id: string }) => (
     <Link 
@@ -117,17 +154,103 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
           {tab === 'stats' && (
             <div>
               <h2 style={{ marginBottom: "1.5rem" }}>User Analytics</h2>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem", marginBottom: "3rem" }}>
-                 <div className="card" style={{ textAlign: "center", padding: "2rem" }}>
-                    <div style={{ fontSize: "2.5rem", fontWeight: 800 }}>{viewsToday || 0}</div>
-                    <div style={{ textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: "1px", opacity: 0.6 }}>Views Today</div>
+              
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1.5rem", marginBottom: "3rem" }}>
+                 <div className="card" style={{ padding: "1.5rem" }}>
+                    <div style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "1px", opacity: 0.6, marginBottom: "0.5rem" }}>Today</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <div><span style={{ fontSize: "2rem", fontWeight: 800 }}>{visitorsToday || 0}</span> <span style={{ fontSize: "0.8rem", opacity: 0.5 }}>Visitors</span></div>
+                      <div><span style={{ fontSize: "2rem", fontWeight: 800 }}>{usageToday || 0}</span> <span style={{ fontSize: "0.8rem", color: "var(--accent)" }}>Actions</span></div>
+                    </div>
                  </div>
-                 <div className="card" style={{ textAlign: "center", padding: "2rem" }}>
-                    <div style={{ fontSize: "2.5rem", fontWeight: 800 }}>{viewsYesterday || 0}</div>
-                    <div style={{ textTransform: "uppercase", fontSize: "0.7rem", letterSpacing: "1px", opacity: 0.6 }}>Views Yesterday</div>
+                 <div className="card" style={{ padding: "1.5rem" }}>
+                    <div style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "1px", opacity: 0.6, marginBottom: "0.5rem" }}>Yesterday</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <div><span style={{ fontSize: "2rem", fontWeight: 800 }}>{visitorsYesterday || 0}</span> <span style={{ fontSize: "0.8rem", opacity: 0.5 }}>Visitors</span></div>
+                      <div><span style={{ fontSize: "2rem", fontWeight: 800 }}>{usageYesterday || 0}</span> <span style={{ fontSize: "0.8rem", color: "var(--accent)" }}>Actions</span></div>
+                    </div>
+                 </div>
+                 <div className="card" style={{ padding: "1.5rem" }}>
+                    <div style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "1px", opacity: 0.6, marginBottom: "0.5rem" }}>This Month</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <div><span style={{ fontSize: "2rem", fontWeight: 800 }}>{visitorsThisMonth || 0}</span> <span style={{ fontSize: "0.8rem", opacity: 0.5 }}>Visitors</span></div>
+                      <div><span style={{ fontSize: "2rem", fontWeight: 800 }}>{usageThisMonth || 0}</span> <span style={{ fontSize: "0.8rem", color: "var(--accent)" }}>Actions</span></div>
+                    </div>
+                 </div>
+                 <div className="card" style={{ padding: "1.5rem" }}>
+                    <div style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "1px", opacity: 0.6, marginBottom: "0.5rem" }}>Last Month</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <div><span style={{ fontSize: "2rem", fontWeight: 800 }}>{visitorsLastMonth || 0}</span> <span style={{ fontSize: "0.8rem", opacity: 0.5 }}>Visitors</span></div>
+                      <div><span style={{ fontSize: "2rem", fontWeight: 800 }}>{usageLastMonth || 0}</span> <span style={{ fontSize: "0.8rem", color: "var(--accent)" }}>Actions</span></div>
+                    </div>
                  </div>
               </div>
-              <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>Note: We track users anonymously via Shadow IDs. Total unique user sessions are counted per page view.</p>
+
+              <h3 style={{ marginBottom: "1rem" }}>Tool Performance Breakdown</h3>
+              <form method="GET" action="/control-panel" style={{ display: "flex", gap: "1rem", alignItems: "center", marginBottom: "2rem" }}>
+                <input type="hidden" name="tab" value="stats" />
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  <label style={{ fontSize: "0.75rem", opacity: 0.7 }}>Start Date</label>
+                  <input type="date" name="start" defaultValue={filterStart || firstOfThisMonth.split('T')[0]} style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid var(--border-color)" }} />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  <label style={{ fontSize: "0.75rem", opacity: 0.7 }}>End Date</label>
+                  <input type="date" name="end" defaultValue={filterEnd || todayStr} style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid var(--border-color)" }} />
+                </div>
+                <button type="submit" className="btn-primary" style={{ marginTop: "1.2rem", padding: "0.5rem 1rem" }}>Filter</button>
+              </form>
+
+              <div className="responsive-grid-2" style={{ gap: "2.5rem" }}>
+                <div>
+                  <h4 style={{ fontSize: "0.9rem", color: "var(--accent)", marginBottom: "1rem" }}>Actual Tool Usage (Actions)</h4>
+                  <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "2rem" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "2px solid var(--border-color)", textAlign: "left" }}>
+                        <th style={{ padding: "1rem 0", fontSize: "0.75rem", textTransform: "uppercase", color: "var(--text-secondary)" }}>Tool Path</th>
+                        <th style={{ padding: "1rem 0", fontSize: "0.75rem", textTransform: "uppercase", color: "var(--text-secondary)", textAlign: "right" }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {toolUsage.length === 0 ? (
+                        <tr><td colSpan={2} style={{ padding: "2rem 0", textAlign: "center", opacity: 0.5 }}>No usage recorded.</td></tr>
+                      ) : (
+                        toolUsage.map((item, idx) => (
+                          <tr key={idx} style={{ borderBottom: "1px solid var(--border-color)" }}>
+                            <td style={{ padding: "1rem 0", fontWeight: 600 }}>{item.tool}</td>
+                            <td style={{ padding: "1rem 0", textAlign: "right", fontWeight: 800, color: "var(--accent)" }}>{item.views.toLocaleString()}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div>
+                  <h4 style={{ fontSize: "0.9rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>Page Views (Visitors)</h4>
+                  <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "2rem" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "2px solid var(--border-color)", textAlign: "left" }}>
+                        <th style={{ padding: "1rem 0", fontSize: "0.75rem", textTransform: "uppercase", color: "var(--text-secondary)" }}>Tool Path</th>
+                        <th style={{ padding: "1rem 0", fontSize: "0.75rem", textTransform: "uppercase", color: "var(--text-secondary)", textAlign: "right" }}>Views</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {toolViews.length === 0 ? (
+                        <tr><td colSpan={2} style={{ padding: "2rem 0", textAlign: "center", opacity: 0.5 }}>No data found.</td></tr>
+                      ) : (
+                        toolViews.map((item, idx) => (
+                          <tr key={idx} style={{ borderBottom: "1px solid var(--border-color)" }}>
+                            <td style={{ padding: "1rem 0", fontWeight: 600 }}>{item.tool}</td>
+                            <td style={{ padding: "1rem 0", textAlign: "right", fontWeight: 800 }}>{item.views.toLocaleString()}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", marginTop: "1rem" }}>Note: We track users anonymously via LocalStorage Shadow IDs. Total unique user sessions are counted per page view natively in the browser without cookies.</p>
             </div>
           )}
 

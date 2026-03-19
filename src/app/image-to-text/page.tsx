@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import Tesseract from 'tesseract.js'
 import BackButton from '@/components/BackButton'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 export default function ImageToText() {
   const [image, setImage] = useState<string | null>(null)
@@ -24,6 +25,7 @@ export default function ImageToText() {
   }
 
   const extractText = (imgSrc: string) => {
+    trackToolUsage('Image OCR Extracted')
     setLoading(true)
     setProgress(0)
     Tesseract.recognize(imgSrc, 'eng', {

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import BackButton from '@/components/BackButton'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 interface Segment {
   index: number
@@ -110,6 +111,7 @@ export default function VideoTrimmer() {
 
   const downloadSegment = async (seg: Segment) => {
     if (!file) return
+    trackToolUsage('Video Clip Exported')
     setExporting(seg.index)
     setExportProgress(0)
     

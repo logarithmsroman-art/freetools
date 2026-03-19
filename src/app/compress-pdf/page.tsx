@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { PDFDocument } from 'pdf-lib'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 export default function CompressPDF() {
   const [file, setFile] = useState<File | null>(null)
@@ -15,6 +16,7 @@ export default function CompressPDF() {
 
   const compressPDF = async () => {
     if (!file) return
+    trackToolUsage('PDF Compressed')
     setLoading(true)
     try {
       const existingPdfBytes = await file.arrayBuffer()

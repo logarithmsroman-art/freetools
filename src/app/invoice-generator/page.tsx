@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import BackButton from '@/components/BackButton'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 interface LineItem {
   id: string
@@ -35,7 +36,10 @@ export default function InvoiceGenerator() {
   const taxAmount = subtotal * (taxRate / 100)
   const total = subtotal + taxAmount
 
-  const handlePrint = () => window.print()
+  const handlePrint = () => {
+    trackToolUsage('Invoice Exported')
+    window.print()
+  }
 
   useEffect(() => {
     setMounted(true)

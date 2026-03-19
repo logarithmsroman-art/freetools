@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import BackButton from '@/components/BackButton'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 // Core Data Pools
 const STATES_WITH_CITIES: Record<string, string[]> = {
@@ -103,6 +104,7 @@ export default function ProfileGenerator() {
   const [copied, setCopied] = useState(false)
 
   const generate = () => {
+    trackToolUsage('Identity Profile Generated')
     const gender = targetGender === 'any' ? (Math.random() < 0.5 ? 'm' : 'f') : targetGender as 'm' | 'f'
     const raceKey = targetRace === 'any' ? pick(Object.keys(ETHNICITIES)) : targetRace
     const raceData = ETHNICITIES[raceKey]

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import BackButton from '@/components/BackButton'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 interface PlatformCheck {
   id: string
@@ -36,6 +37,7 @@ export default function UsernameChecker() {
   const [isChecking, setIsChecking] = useState(false)
 
   const checkAvailability = async () => {
+    trackToolUsage('Username Scan Started')
     const cleanUsername = username.trim().replace(/[^a-zA-Z0-9_-]/g, '')
     if (!cleanUsername) return
 

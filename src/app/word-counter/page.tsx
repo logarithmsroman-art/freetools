@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import BackButton from '@/components/BackButton'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
+let hasTrackedThisSession = false;
 
 export default function WordCounter() {
   const [text, setText] = useState('')
@@ -44,7 +46,13 @@ export default function WordCounter() {
 
         <textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value)
+            if (!hasTrackedThisSession && e.target.value.length > 5) {
+              trackToolUsage('Word Count Started')
+              hasTrackedThisSession = true
+            }
+          }}
           placeholder="Paste or type your content here for analysis..."
           style={{
             width: "100%",

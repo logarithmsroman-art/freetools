@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import BackButton from '@/components/BackButton'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 export default function ImageFormatConverter() {
   const [file, setFile] = useState<File | null>(null)
@@ -20,6 +21,7 @@ export default function ImageFormatConverter() {
 
   const convertImage = async () => {
     if (!file || !canvasRef.current) return
+    trackToolUsage(`Image Converted to ${targetFormat.split('/')[1]}`)
     setLoading(true)
     
     const img = new Image()

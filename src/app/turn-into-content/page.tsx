@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import BackButton from '@/components/BackButton'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 const PLATFORMS = [
   { id: 'tiktok', label: 'TikTok Post', icon: '📱' },
@@ -22,6 +23,7 @@ export default function ContentCreator() {
 
   const generate = async () => {
     if (!input.trim()) return
+    trackToolUsage('AI Content Generated')
     setLoading(true)
     setResult('')
     setCopied(false)

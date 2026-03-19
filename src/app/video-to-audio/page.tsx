@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import BackButton from '@/components/BackButton'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 export default function VideoToAudio() {
   const [file, setFile] = useState<File | null>(null)
@@ -19,6 +20,7 @@ export default function VideoToAudio() {
 
   const extract = async () => {
     if (!file || !videoRef.current) return
+    trackToolUsage('Audio Extracted from Video')
     setExtracting(true)
     
     const video = videoRef.current

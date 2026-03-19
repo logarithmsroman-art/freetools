@@ -1,11 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 export default function CaseConverter() {
   const [text, setText] = useState('')
 
   const handleConvert = (type: 'upper' | 'lower' | 'title' | 'sentence' | 'clean') => {
+    trackToolUsage(`Case Converted to ${type}`)
     let newText = text
 
     switch (type) {

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import BackButton from '@/components/BackButton'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 const PLATFORMS = [
   { id: 'tiktok', label: 'TikTok', emoji: '🎵', hint: 'Short, punchy, trending' },
@@ -29,6 +30,7 @@ export default function UsernameGenerator() {
   const selectedPlatform = PLATFORMS.find(p => p.id === platform)!
 
   const generateAI = async () => {
+    trackToolUsage('AI Usernames Generated')
     setLoading(true)
     setUsernames([])
     const prompt = `Generate 15 unique, creative usernames for ${selectedPlatform.label} (${selectedPlatform.hint}).
@@ -48,6 +50,7 @@ Rules:
   }
 
   const generateQuick = () => {
+    trackToolUsage('Quick Usernames Generated')
     const PREFIXES: Record<string, string[]> = {
       tiktok: ['vibe_', 'real', 'its', 'the', 'just', 'not', 'ur'],
       instagram: ['', 'the.', 'its.', 'simply.', 'life.with.'],

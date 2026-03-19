@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 interface AudioTrack {
   id: number
@@ -60,6 +61,7 @@ export default function AudioJoiner() {
 
   const merge = async () => {
     if (tracks.length < 2) return
+    trackToolUsage('Audio Tracks Merged')
     setMerging(true)
     setDownloadUrl(null)
 

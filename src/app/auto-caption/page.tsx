@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import BackButton from '@/components/BackButton'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Caption {
@@ -166,6 +167,7 @@ export default function AutoCaption() {
   // ── Export with FFmpeg.wasm ────────────────────────────────────────────────
   const exportVideo = async () => {
     if (!videoFile || !captions.length) return
+    trackToolUsage('Video Exported')
     setStep('exporting'); setExportProgress(5)
     try {
       const { FFmpeg } = await import('@ffmpeg/ffmpeg')

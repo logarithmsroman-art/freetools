@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import WaveSurfer from 'wavesurfer.js'
 import BackButton from '@/components/BackButton'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 interface Segment {
   index: number
@@ -72,6 +73,7 @@ export default function AudioSplitter() {
 
   const downloadSegment = async (seg: Segment) => {
     if (!audioBuffer.current) return
+    trackToolUsage('Audio Segment Split & Downloaded')
     setExporting(seg.index)
     const buf = audioBuffer.current
     const sampleRate = buf.sampleRate

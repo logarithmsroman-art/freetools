@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import imageCompression from 'browser-image-compression'
+import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 export default function FileSizeReducer() {
   const [file, setFile] = useState<File | null>(null)
@@ -20,6 +21,7 @@ export default function FileSizeReducer() {
 
   const compressImage = async () => {
     if (!file) return
+    trackToolUsage('Image Compressed')
     setLoading(true)
     try {
       const options = {
@@ -38,6 +40,7 @@ export default function FileSizeReducer() {
 
   const downloadFile = () => {
     if (!outputFile) return
+    trackToolUsage('Compressed Image Downloaded')
     const url = URL.createObjectURL(outputFile)
     const link = document.createElement('a')
     link.href = url
