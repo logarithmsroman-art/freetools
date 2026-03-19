@@ -13,14 +13,15 @@ export async function POST(req: NextRequest) {
 
     // Check duration via file size proxy — 5 min at ~1MB/min for audio = 5MB rough limit
     // We'll enforce this on the client too.
-    const maxBytes = 100 * 1024 * 1024 // 100MB hard server limit
+    const maxBytes = 25 * 1024 * 1024 // 25MB limit for audio
     if (file.size > maxBytes) {
-      return NextResponse.json({ error: 'File too large. Max 100MB.' }, { status: 400 })
+      return NextResponse.json({ error: 'Audio too large. Please use a shorter video (max 5 mins).' }, { status: 400 })
     }
 
     const arrayBuffer = await file.arrayBuffer()
     const base64 = Buffer.from(arrayBuffer).toString('base64')
-    const mimeType = file.type || 'video/mp4'
+    // Accept audio/webm from client-side extraction, or fallback to video
+    const mimeType = file.type && file.type !== 'application/octet-stream' ? file.type : 'audio/webm'
 
     const prompt = `You are a professional video transcription engine.
 Transcribe ALL spoken words from this video/audio file.
@@ -51,7 +52,7 @@ Format: [{"text": "Hello everyone welcome back", "start": 0.0, "end": 1.8}, ...]
     }
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
