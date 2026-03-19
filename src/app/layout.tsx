@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "FreeTool — Free Online Tools",
   description: "A massive collection of free browser-based utilities. No sign-up, no limits.",
+  icons: {
+    icon: '/logo.png'
+  }
 };
 
 import Navbar from "@/components/Navbar";

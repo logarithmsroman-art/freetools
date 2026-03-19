@@ -8,7 +8,18 @@ export default function Navbar() {
 
   return (
     <nav style={{ padding: "1.5rem 0", borderBottom: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <Link href="/" style={{ fontSize: "1.25rem", fontWeight: "bold", letterSpacing: "-0.5px", textDecoration: "none", color: "var(--text-primary)" }}>FreeTool</Link>
+      <Link href="/" style={{ fontSize: "1.4rem", fontWeight: 800, letterSpacing: "-0.5px", textDecoration: "none", display: "flex", alignItems: "center" }}>
+        <span style={{ 
+          color: 'var(--accent)', 
+          textShadow: '0 0 12px var(--accent-light)', 
+          fontStyle: 'italic', 
+          marginRight: '2px',
+          fontSize: '1.6rem',
+          position: 'relative',
+          top: '-1px'
+        }}>F</span>
+        <span style={{ color: 'var(--text-primary)' }}>reeTool</span>
+      </Link>
       <div style={{ display: "flex", gap: "1.5rem", alignItems: "center" }}>
         {/* Theme Toggle Container */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
