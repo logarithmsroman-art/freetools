@@ -35,6 +35,7 @@ export const TOOLS: Tool[] = [
   { name: 'QR Code Creator', path: '/qr-code-creator', desc: 'Generate and downlaod custom QR codes.', icon: '📱', categoryId: 'image', isPopular: false },
   
   // Audio Editors
+  { name: 'AI Auto-Caption Generator', path: '/auto-caption', desc: 'AI adds captions to your video. Edit styles, preview on TikTok/Instagram/YouTube, and download.', icon: '✨', categoryId: 'audio', isPopular: true },
   { name: 'Video to Audio Converter', path: '/video-to-audio', desc: 'Extract MP3 sound from MP4/MOV videos.', icon: '📻', categoryId: 'audio', isPopular: false },
   { name: 'Audio Joiner & Combiner', path: '/audio-joiner', desc: 'Merge multiple songs into one track.', icon: '🔀', categoryId: 'audio', isPopular: true },
   { name: 'Audio Cutter & Splitter', path: '/audio-splitter', desc: 'Trim and cut apart sound files easily.', icon: '✂️', categoryId: 'audio', isPopular: false },
