@@ -6,12 +6,12 @@ import { TOOLS, CATEGORIES } from "@/data/tools";
 
 export default function AllToolsPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState("all");
+  const [activeCategories, setActiveCategories] = useState<string[]>([]);
 
   const filteredTools = TOOLS.filter(t => {
     const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          t.desc.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = activeCategory === "all" || t.categoryId === activeCategory;
+    const matchesCategory = activeCategories.length === 0 || activeCategories.includes(t.categoryId);
     return matchesSearch && matchesCategory;
   });
 
@@ -46,12 +46,13 @@ export default function AllToolsPage() {
         </div>
       </header>
 
-      {/* Category Tabs */}
+      {/* Category Pills (Multi-Select) */}
       <nav style={{ 
         display: "flex", 
-        gap: "0.5rem", 
-        marginBottom: "3rem", 
-        overflowX: "auto", 
+        flexWrap: "wrap",
+        gap: "0.6rem", 
+        justifyContent: "center",
+        marginBottom: "2.5rem", 
         paddingBottom: "1rem",
         borderBottom: "1px solid var(--border-color)",
         position: "sticky",
@@ -59,39 +60,32 @@ export default function AllToolsPage() {
         backgroundColor: "var(--bg-primary)",
         zIndex: 10
       }}>
-        <button 
-          onClick={() => setActiveCategory("all")}
-          style={{ 
-            padding: "0.5rem 1.25rem", 
-            borderRadius: "50px", 
-            border: "1px solid transparent",
-            backgroundColor: activeCategory === "all" ? "var(--accent)" : "transparent",
-            color: activeCategory === "all" ? "#fff" : "var(--text-secondary)",
-            cursor: "pointer",
-            fontWeight: 600,
-            whiteSpace: "nowrap"
-          }}
-        >
-          All Tools
-        </button>
-        {CATEGORIES.map(cat => (
-          <button 
-            key={cat.id}
-            onClick={() => setActiveCategory(cat.id)}
-            style={{ 
-              padding: "0.5rem 1.25rem", 
-              borderRadius: "50px", 
-              border: "1px solid transparent",
-              backgroundColor: activeCategory === cat.id ? "var(--accent)" : "transparent",
-              color: activeCategory === cat.id ? "#fff" : "var(--text-secondary)",
-              cursor: "pointer",
-              fontWeight: 600,
-              whiteSpace: "nowrap"
-            }}
-          >
-            {cat.name}
-          </button>
-        ))}
+        {CATEGORIES.map(cat => {
+          const isActive = activeCategories.includes(cat.id);
+          return (
+            <button 
+              key={cat.id}
+              onClick={() => {
+                setActiveCategories(prev => 
+                  prev.includes(cat.id) ? prev.filter(id => id !== cat.id) : [...prev, cat.id]
+                )
+              }}
+              style={{ 
+                padding: "0.45rem 1.1rem", 
+                borderRadius: "50px", 
+                border: isActive ? "1px solid var(--accent)" : "1px solid var(--border-color)",
+                backgroundColor: isActive ? "var(--accent)" : "transparent",
+                color: isActive ? "#fff" : "var(--text-secondary)",
+                cursor: "pointer",
+                fontWeight: 600,
+                fontSize: "0.85rem",
+                transition: "all 0.2s"
+              }}
+            >
+              {cat.name}
+            </button>
+          )
+        })}
       </nav>
 
       {/* Tools Grid */}
@@ -102,16 +96,16 @@ export default function AllToolsPage() {
       }}>
         {filteredTools.length > 0 ? (
           filteredTools.map((tool) => (
-            <Link key={tool.path} href={tool.path} className="card tool-card" style={{ padding: "1.5rem", display: "flex", gap: "1rem", alignItems: "flex-start", borderRadius: "12px" }}>
+            <Link key={tool.path} href={tool.path} className="card tool-card" style={{ padding: "1rem", display: "flex", gap: "0.85rem", alignItems: "flex-start", borderRadius: "10px" }}>
               <div style={{ 
-                width: "48px", 
-                height: "48px", 
-                borderRadius: "10px", 
+                width: "40px", 
+                height: "40px", 
+                borderRadius: "8px", 
                 backgroundColor: "var(--accent-light)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "1.25rem",
+                fontSize: "1.15rem",
                 color: "var(--accent)",
                 flexShrink: 0,
                 fontWeight: "bold"
@@ -119,8 +113,8 @@ export default function AllToolsPage() {
                 {tool.icon}
               </div>
               <div style={{ overflow: "hidden" }}>
-                <h3 style={{ fontSize: "1rem", marginBottom: "0.35rem", color: "var(--text-primary)", fontWeight: 700 }}>{tool.name}</h3>
-                <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", lineHeight: "1.5" }}>{tool.desc}</p>
+                <h3 style={{ fontSize: "0.95rem", marginBottom: "0.2rem", color: "var(--text-primary)", fontWeight: 700 }}>{tool.name}</h3>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.8rem", lineHeight: "1.4" }}>{tool.desc}</p>
               </div>
             </Link>
           ))
@@ -130,7 +124,7 @@ export default function AllToolsPage() {
             <h3 style={{ fontSize: "1.25rem", color: "var(--text-primary)", marginBottom: "0.5rem" }}>No tools found</h3>
             <p style={{ color: "var(--text-secondary)" }}>We couldn't find any results for "{searchQuery}"</p>
             <button 
-              onClick={() => { setSearchQuery(""); setActiveCategory("all"); }}
+              onClick={() => { setSearchQuery(""); setActiveCategories([]); }}
               style={{ marginTop: "1.5rem", padding: "0.75rem 1.5rem", borderRadius: "8px", border: "1px solid var(--border-color)", cursor: "pointer", backgroundColor: "var(--bg-secondary)" }}
             >
               Clear all filters

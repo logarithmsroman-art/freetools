@@ -235,7 +235,7 @@ export default function AutoCaption() {
             <video ref={videoRef} src={videoUrl!} controls style={{ width: '100%', display: 'block', maxHeight: '420px', objectFit: 'contain' }} />
             {/* Caption overlay */}
             {captions.length > 0 && activeCaption && (
-              <CaptionOverlay caption={activeCaption} style={style} />
+              <CaptionOverlay caption={activeCaption} style={style} videoRef={videoRef} />
             )}
             <canvas ref={canvasRef} style={{ display: 'none' }} />
           </div>
@@ -302,7 +302,6 @@ export default function AutoCaption() {
       <style>{`
         @media (max-width: 768px) {
           .caption-layout { grid-template-columns: 1fr !important; }
-          .responsive-caption { font-size: calc(var(--base-font-size) * 100vw / 820) !important; }
         }
         @keyframes capPop { 
           0% { transform: scale(0.4); opacity: 0; } 
@@ -323,27 +322,86 @@ export default function AutoCaption() {
 }
 
 // ─── Caption Overlay on Video ─────────────────────────────────────────────────
-function CaptionOverlay({ caption, style }: { caption: Caption; style: CaptionStyle }) {
+function CaptionOverlay({ caption, style, videoRef }: { caption: Caption; style: CaptionStyle; videoRef?: React.RefObject<HTMLVideoElement> }) {
+  const [scale, setScale] = useState(1);
+  const [vidRect, setVidRect] = useState({ top: 0, height: '100%' });
+
+  // Calculate pixel-perfect scale matching FFmpeg PlayResY=720 mapping
+  useEffect(() => {
+    const video = videoRef?.current;
+    if (!video) return;
+
+    const updateScale = () => {
+      const { videoWidth, videoHeight, offsetWidth, offsetHeight } = video;
+      if (!videoWidth || !videoHeight || !offsetWidth) return;
+
+      const videoRatio = videoWidth / videoHeight;
+      const boxRatio = offsetWidth / offsetHeight;
+
+      let actualHeight;
+      // Is video letterboxed or pillarboxed?
+      if (boxRatio > videoRatio) {
+        // Pillarbox: touches top/bottom
+        actualHeight = offsetHeight;
+        setVidRect({ top: 0, height: `${offsetHeight}px` });
+      } else {
+        // Letterbox: touches sides, black bars top/bottom
+        actualHeight = offsetWidth / videoRatio;
+        setVidRect({ top: (offsetHeight - actualHeight) / 2, height: `${actualHeight}px` });
+      }
+
+      // In FFmpeg, PlayResY is 720 and ASS fontSize is (style.fontSize * 2).
+      // Target screen size = (fontSize * 2) * (actualHeight / 720) = fontSize * (actualHeight / 360)
+      setScale(actualHeight / 360);
+    };
+
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    let observer: ResizeObserver | null = null;
+    if (window.ResizeObserver) {
+      observer = new ResizeObserver(updateScale);
+      observer.observe(video);
+    }
+    video.addEventListener('loadedmetadata', updateScale);
+
+    return () => {
+      window.removeEventListener('resize', updateScale);
+      if (observer) observer.disconnect();
+      video.removeEventListener('loadedmetadata', updateScale);
+    };
+  }, [videoRef]);
+
   const words = caption.text.split(' ')
+
+  // Inner wrapper snapping exactly to the visible video area
+  const wrapperStyle: React.CSSProperties = {
+    position: 'absolute',
+    left: 0,
+    width: '100%',
+    top: vidRect.top,
+    height: vidRect.height,
+    pointerEvents: 'none',
+    zIndex: 20,
+    overflow: 'hidden'
+  };
+
   const posStyle: React.CSSProperties = {
     position: 'absolute',
     left: '50%',
     transform: 'translateX(-50%)',
-    ...(style.position === 'bottom' ? { bottom: '55px' } :
-       style.position === 'top' ? { top: '20px' } :
+    ...(style.position === 'bottom' ? { bottom: `${40 * (scale / 2)}px` } :
+       style.position === 'top' ? { top: `${40 * (scale / 2)}px` } :
        { top: '50%', transform: 'translate(-50%, -50%)' }),
-    zIndex: 20,
     textAlign: 'center',
     maxWidth: '88%',
-    padding: '0.4rem 0.85rem',
+    padding: `${0.2 * scale}rem ${0.45 * scale}rem`,
     backgroundColor: `${style.bgColor}${Math.round(style.bgOpacity * 255).toString(16).padStart(2, '0')}`,
-    borderRadius: '8px',
+    borderRadius: `${8 * (scale / 2)}px`,
     fontFamily: style.fontFamily,
-    fontSize: 'var(--base-font-size)',
+    fontSize: Math.max(8, style.fontSize * scale) + 'px',
     fontWeight: style.bold ? 800 : 400,
-    textShadow: style.outline ? '1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000' : 'none',
+    textShadow: style.outline ? `${1.5 * scale}px ${1.5 * scale}px 0 #000, -${1.5 * scale}px -${1.5 * scale}px 0 #000, ${1.5 * scale}px -${1.5 * scale}px 0 #000, -${1.5 * scale}px ${1.5 * scale}px 0 #000` : 'none',
     lineHeight: 1.3,
-    pointerEvents: 'none',
     userSelect: 'none',
     whiteSpace: 'pre-wrap',
   }
@@ -363,9 +421,11 @@ function CaptionOverlay({ caption, style }: { caption: Caption; style: CaptionSt
   }
 
   return (
-    <div className="responsive-caption" style={{ ...posStyle, '--base-font-size': `${style.fontSize}px` } as any}>
-      <div key={caption.id} style={{ animation: `${animKeyframe} ${animDur} ease-out forwards` }}>
-        {renderText()}
+    <div style={wrapperStyle}>
+      <div style={posStyle}>
+        <div key={caption.id} style={{ animation: `${animKeyframe} ${animDur} ease-out forwards` }}>
+          {renderText()}
+        </div>
       </div>
     </div>
   )
