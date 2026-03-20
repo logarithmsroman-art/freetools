@@ -23,7 +23,7 @@ const PLATFORMS: Record<string, Platform> = {
     maxLength: 30,
     availableStrings: ['Page Not Found', 'The link you followed may be broken', 'content isn\'t available'],
     blockedStrings: ['Log In', 'Instagram from Meta', 'Login • Instagram', 'Sign Up'],
-    takenStrings: ['Followers', 'Following', 'Posts', 'Follow', 'Profile']
+    takenStrings: ['Followers', 'Following', 'Posts', 'Follow', 'Profile', '@']
   },
   facebook: { 
     name: 'Facebook', 
@@ -44,8 +44,8 @@ const PLATFORMS: Record<string, Platform> = {
     regex: '^[a-zA-Z0-9_]+$', 
     minLength: 4, 
     maxLength: 15,
-    availableStrings: ['This account doesn\'t exist', 'Something went wrong', 'Page not found'],
-    blockedStrings: ['Log in to X', 'Sign in to X', 'Sign up'],
+    availableStrings: ['This account doesn\'t exist'],
+    blockedStrings: ['Log in to X', 'Sign in to X', 'Sign up', 'Something went wrong', 'Page not found'],
     takenStrings: ['Joined', 'Followers', 'Following', '@']
   },
   github: { 
@@ -62,9 +62,9 @@ const PLATFORMS: Record<string, Platform> = {
     url: 'https://www.reddit.com/user/{}', 
     availableCodes: [404], 
     takenCodes: [200, 302], 
-    availableStrings: ['Reddit doesn\'t have a user with that name', 'suspended', 'page not found'],
+    availableStrings: ['Reddit doesn\'t have a user with that name'],
     blockedStrings: ['verify you are human', 'whoa there'],
-    takenStrings: ['Karma', 'Cake day', 'Chat']
+    takenStrings: ['Karma', 'Cake day', 'Chat', 'suspended', 'page not found']
   },
   twitch: { 
     name: 'Twitch', 
@@ -72,7 +72,7 @@ const PLATFORMS: Record<string, Platform> = {
     availableCodes: [404], 
     takenCodes: [200],
     availableStrings: ['content is unavailable', 'unless you\'ve got a time machine'],
-    blockedStrings: ['passport.twitch.tv', 'Log In', 'Sign Up'],
+    blockedStrings: ['passport.twitch.tv', 'Log In', 'Sign Up', 'Redirecting'],
     takenStrings: ['Followers', 'Bio', 'Schedule']
   },
   pinterest: { 
@@ -80,7 +80,7 @@ const PLATFORMS: Record<string, Platform> = {
     url: 'https://www.pinterest.com/{}/', 
     availableCodes: [404], 
     takenCodes: [200],
-    availableStrings: ['User not found', 'Plus de résultats pour', 'Nessun résultat per'],
+    availableStrings: ['User not found', 'Plus de résultats pour', 'Nessun risultato per'],
     blockedStrings: ['Log in', 'Sign up'],
     takenStrings: ['Pins', 'Followers', 'Following']
   },
@@ -140,28 +140,51 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: 'invalid', reason: 'Invalid characters' })
     }
 
-    const targetUrl = platform.url.replace('{}', encodeURIComponent(username))
+    let targetUrl = platform.url.replace('{}', encodeURIComponent(username))
 
-    // 2. Fetch with optimized headers to mimic real browser better
-    const response = await fetch(targetUrl, {
-      method: 'GET',
-      headers: {
+    // 2. Fetch using ScraperAPI if key is provided, otherwise direct mobile fetch
+    const scraperApiKey = process.env.SCRAPER_API_KEY
+    console.log(`Scan: ${platformId} for ${username} (Proxy: ${!!scraperApiKey})`)
+    const useScraperApi = !!scraperApiKey && ['twitter', 'instagram', 'onlyfans', 'twitch', 'facebook', 'reddit', 'pinterest'].includes(platformId)
+    
+    let finalUrl = targetUrl
+    let fetchOptions: RequestInit = {
+      signal: AbortSignal.timeout(scraperApiKey ? 35000 : 12000), // Proxies (especially with render=true) take longer
+      method: 'GET'
+    }
+
+    if (useScraperApi) {
+      // Route through ScraperAPI proxies to bypass blocks
+      const scraperUrl = new URL('https://api.scraperapi.com')
+      scraperUrl.searchParams.append('api_key', scraperApiKey as string)
+      scraperUrl.searchParams.append('url', targetUrl)
+      
+      // Use premium proxies and specific configuration for stubborn social networks
+      if (['twitter', 'instagram', 'facebook', 'onlyfans', 'twitch'].includes(platformId)) {
+        scraperUrl.searchParams.append('premium', 'true')
+        scraperUrl.searchParams.append('country_code', 'us')
+      }
+      
+      // JavaScript rendering with wait condition for platforms that hide content behind JS
+      if (['twitter', 'twitch', 'onlyfans', 'instagram', 'facebook'].includes(platformId)) {
+        scraperUrl.searchParams.append('render', 'true')
+        scraperUrl.searchParams.append('wait_until', 'networkidle0')
+      }
+      
+      finalUrl = scraperUrl.toString()
+      fetchOptions.signal = AbortSignal.timeout(60000) // 60s for premium rendering
+    } else {
+      // Fallback: Direct Mobile User-Agent + Fake Referer
+      fetchOptions.headers = {
         'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'DNT': '1',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
         'Referer': 'https://www.google.com/',
-        'Cache-Control': 'max-age=0'
-      },
-      signal: AbortSignal.timeout(10000)
-    })
+        'Cache-Control': 'no-cache'
+      }
+    }
+
+    const response = await fetch(finalUrl, fetchOptions)
 
     const status = response.status
 
@@ -179,26 +202,20 @@ export async function POST(req: NextRequest) {
       const titleMatch = bodyText.match(/<title>(.*?)<\/title>/i)
       const title = titleMatch ? titleMatch[1].trim() : ''
 
-      // Instagram: If title is exactly "Instagram", it's a login wall
-      if (platformId === 'instagram' && title === 'Instagram') {
-        return NextResponse.json({ status: 'unverified', reason: 'blocked', details: 'Login wall (Instagram title)' })
-      }
-      
-      // Pinterest: Generic "Pinterest" title usually means redirected to landing/login
-      if (platformId === 'pinterest' && title === 'Pinterest') {
-        return NextResponse.json({ status: 'unverified', reason: 'blocked', details: 'Login wall (Pinterest title)' })
-      }
-
-      // Check for BLOCKED markers in body
-      if (platform.blockedStrings) {
-        for (const str of platform.blockedStrings) {
-          if (lowerBody.includes(str.toLowerCase())) {
-            return NextResponse.json({ status: 'unverified', reason: 'blocked', details: 'Login wall detected' })
-          }
+      // 4a. If NOT using ScraperAPI, be very strict about login walls (they are likely empty)
+      if (!useScraperApi) {
+        if (platformId === 'instagram' && title === 'Instagram') {
+          return NextResponse.json({ status: 'unverified', reason: 'blocked', details: 'Login wall detection' })
+        }
+        if (platformId === 'pinterest' && title === 'Pinterest') {
+          return NextResponse.json({ status: 'unverified', reason: 'blocked', details: 'Login wall detection' })
         }
       }
 
-      // Check for AVAILABLE markers in body
+      // 4b. CHECK FOR POSITIVE MARKERS (Available or Taken) FIRST
+      // This solves the issue where a real profile has a "Log In" button in the footer
+      
+      // Check for AVAILABLE markers
       if (platform.availableStrings) {
         for (const str of platform.availableStrings) {
           if (lowerBody.includes(str.toLowerCase())) {
@@ -216,13 +233,17 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // DEFAULT to unverified if nothing matches (avoid false positives for nonsense)
-      // Only assume taken if we have basically no configuration for this platform
-      if (!platform.availableStrings && !platform.takenStrings && !platform.blockedStrings) {
-        return NextResponse.json({ status: 'taken' })
+      // 4c. Check for BLOCKED markers LAST
+      if (platform.blockedStrings) {
+        for (const str of platform.blockedStrings) {
+          if (lowerBody.includes(str.toLowerCase())) {
+            return NextResponse.json({ status: 'unverified', reason: 'blocked', details: 'Profile data missing' })
+          }
+        }
       }
 
-      return NextResponse.json({ status: 'unverified', reason: 'unclear response', details: 'No profile markers found' })
+      // 4d. FINAL FALLBACK: If status is 200 and we didn't find specific blocks, likely Taken
+      return NextResponse.json({ status: 'taken' })
     }
 
     // 5. Explicitly Blocked/Error Codes
@@ -231,6 +252,7 @@ export async function POST(req: NextRequest) {
       code: status, 
       reason: status === 403 || status === 429 ? 'blocked' : 'error' 
     })
+
 
   } catch (error: any) {
     if (error.name === 'TimeoutError') {
