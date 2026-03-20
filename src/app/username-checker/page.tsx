@@ -7,7 +7,8 @@ import { trackToolUsage } from '@/components/AnalyticsTracker'
 interface PlatformCheck {
   id: string
   name: string
-  status: 'pending' | 'loading' | 'available' | 'taken' | 'unverified'
+  status: 'pending' | 'loading' | 'available' | 'taken' | 'unverified' | 'invalid'
+  reason?: string
 }
 
 const INITIAL_PLATFORMS: PlatformCheck[] = [
@@ -17,18 +18,11 @@ const INITIAL_PLATFORMS: PlatformCheck[] = [
   { id: 'github', name: 'GitHub', status: 'pending' },
   { id: 'reddit', name: 'Reddit', status: 'pending' },
   { id: 'twitch', name: 'Twitch', status: 'pending' },
+  { id: 'youtube', name: 'YouTube', status: 'pending' },
   { id: 'pinterest', name: 'Pinterest', status: 'pending' },
-  { id: 'vimeo', name: 'Vimeo', status: 'pending' },
-  { id: 'wattpad', name: 'Wattpad', status: 'pending' },
-  { id: 'deviantart', name: 'DeviantArt', status: 'pending' },
-  { id: 'steam', name: 'Steam', status: 'pending' },
-  { id: 'soundcloud', name: 'SoundCloud', status: 'pending' },
-  { id: 'bandcamp', name: 'Bandcamp', status: 'pending' },
   { id: 'medium', name: 'Medium', status: 'pending' },
   { id: 'dribbble', name: 'Dribbble', status: 'pending' },
-  { id: 'imgur', name: 'Imgur', status: 'pending' },
-  { id: 'youtube', name: 'YouTube', status: 'pending' },
-  { id: 'onlyfans', name: 'OnlyFans', status: 'pending' },
+  { id: 'onlyfans', name: 'OnlyFans', status: 'pending' }
 ]
 
 export default function UsernameChecker() {
@@ -38,11 +32,11 @@ export default function UsernameChecker() {
 
   const checkAvailability = async () => {
     trackToolUsage('Username Scan Started')
-    const cleanUsername = username.trim().replace(/[^a-zA-Z0-9_-]/g, '')
+    const cleanUsername = username.trim()
     if (!cleanUsername) return
 
     setIsChecking(true)
-    setPlatforms(platforms.map(p => ({ ...p, status: 'loading' })))
+    setPlatforms(platforms.map(p => ({ ...p, status: 'loading', reason: undefined })))
 
     // Execute concurrently
     await Promise.allSettled(
@@ -57,11 +51,15 @@ export default function UsernameChecker() {
           const data = await res.json()
           
           setPlatforms(prev => 
-            prev.map(item => item.id === p.id ? { ...item, status: data.status || 'unverified' } : item)
+            prev.map(item => item.id === p.id ? { 
+              ...item, 
+              status: data.status || 'unverified',
+              reason: data.reason || data.details || (data.status === 'unverified' ? 'Scan Error' : undefined)
+            } : item)
           )
         } catch (e) {
           setPlatforms(prev => 
-            prev.map(item => item.id === p.id ? { ...item, status: 'unverified' } : item)
+            prev.map(item => item.id === p.id ? { ...item, status: 'unverified', reason: 'Network error' } : item)
           )
         }
       })
@@ -78,16 +76,18 @@ export default function UsernameChecker() {
       case 'available': return '#10b981' // emerald
       case 'taken': return '#ef4444'     // red
       case 'unverified': return '#f59e0b'// amber
+      case 'invalid': return '#6b7280'   // gray
       case 'loading': return '#3b82f6'   // blue
       default: return 'var(--text-secondary)'
     }
   }
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
+  const getStatusLabel = (p: PlatformCheck) => {
+    switch (p.status) {
       case 'available': return '✓ Available'
       case 'taken': return '✕ Taken'
-      case 'unverified': return '⚠ Not Verified'
+      case 'unverified': return p.reason === 'blocked' ? '⚠ Blocked' : '⚠ Error'
+      case 'invalid': return '✕ Invalid'
       case 'loading': return 'Checking...'
       default: return 'Waiting'
     }
@@ -99,7 +99,7 @@ export default function UsernameChecker() {
 
       <header style={{ textAlign: "center", marginBottom: "3rem" }}>
         <h1 style={{ fontSize: "2.5rem", letterSpacing: "-1.5px", fontWeight: 800 }}>Username Availability Checker</h1>
-        <p style={{ color: "var(--text-secondary)", fontSize: "1.1rem" }}>Check if your perfect custom handle is taken across 15+ networks.</p>
+        <p style={{ color: "var(--text-secondary)", fontSize: "1.1rem" }}>Check if your handle is taken across 10+ major networks.</p>
       </header>
 
       {/* Input Section */}
@@ -141,26 +141,33 @@ export default function UsernameChecker() {
       )}
 
       {/* Results Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: "1rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1rem" }}>
         {platforms.map(p => (
-          <div key={p.id} className="card" style={{ padding: "1.25rem", display: "flex", justifyContent: "space-between", alignItems: "center", borderLeft: `6px solid ${getStatusColor(p.status)}`, backgroundColor: "var(--bg-secondary)" }}>
-            <span style={{ fontWeight: 700, fontSize: "1.05rem" }}>{p.name}</span>
-            <span style={{ 
-              color: getStatusColor(p.status), 
-              fontSize: "0.85rem", 
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "1px"
-            }}>
-              {getStatusLabel(p.status)}
-            </span>
+          <div key={p.id} className="card" style={{ padding: "1.25rem", display: "flex", flexDirection: "column", gap: "0.5rem", borderLeft: `6px solid ${getStatusColor(p.status)}`, backgroundColor: "var(--bg-secondary)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontWeight: 700, fontSize: "1.05rem" }}>{p.name}</span>
+              <span style={{ 
+                color: getStatusColor(p.status), 
+                fontSize: "0.85rem", 
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "1px"
+              }}>
+                {getStatusLabel(p)}
+              </span>
+            </div>
+            {p.reason && (
+              <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontStyle: "italic" }}>
+                {p.reason}
+              </span>
+            )}
           </div>
         ))}
       </div>
 
       {/* Footer Info */}
       <article style={{ marginTop: "3rem", padding: "1.5rem", borderRadius: "8px", backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)", fontSize: "0.9rem", color: "var(--text-secondary)", lineHeight: 1.6 }}>
-        <strong>Why do some say "Not Verified"?</strong> The social networks use heavy anti-bot protections. If our tool intercepts an empty captcha response or a shadow-ban error (e.g., 403 Forbidden), we report it as "Not Verified" rather than lying to you!
+        <strong>Refined Verification:</strong> We now use intelligent scanning to detect "shadow-ban" pages and login walls. If a platform blocks our request due to rate limits, we label it as "Blocked" rather than giving you a false "Taken" result.
       </article>
 
     </main>
