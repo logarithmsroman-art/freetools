@@ -10,15 +10,19 @@ export default async function Home() {
   
   const configMap = Object.fromEntries(configs?.map(c => [c.id, c]) || [])
 
-  // Merge static data with dynamic DB popularity
+  // Merge static data with dynamic DB popularity and visibility
   let dynamicTools = TOOLS.map(tool => {
     const config = configMap[tool.path]
     return {
       ...tool,
       isPopular: config ? config.is_popular : tool.isPopular,
-      orderRank: config ? config.order_rank : 999
+      orderRank: config ? config.order_rank : 999,
+      isEnabled: config ? (config.is_enabled !== false) : true
     }
   })
+
+  // Filter out disabled tools
+  dynamicTools = dynamicTools.filter(t => t.isEnabled)
 
   // Sort tools so that those with lower orderRank appear first among popular tools
   dynamicTools = dynamicTools.sort((a, b) => a.orderRank - b.orderRank)

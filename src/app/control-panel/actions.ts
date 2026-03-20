@@ -3,12 +3,17 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 
-export async function togglePopularity(path: string, currentStatus: boolean, orderRank: number = 999) {
+export async function updateToolSettings(path: string, isPop: boolean, rank: number, isEnabled: boolean) {
   const supabase = await createClient()
   
   const { error } = await supabase
     .from('tool_configs')
-    .upsert({ id: path, is_popular: currentStatus, order_rank: orderRank })
+    .upsert({ 
+      id: path, 
+      is_popular: isPop, 
+      order_rank: rank,
+      is_enabled: isEnabled 
+    })
 
   if (error) {
     console.error('Update Error:', error)
@@ -17,6 +22,7 @@ export async function togglePopularity(path: string, currentStatus: boolean, ord
 
   revalidatePath('/')
   revalidatePath('/control-panel')
+  revalidatePath(path)
   return { success: true }
 }
 

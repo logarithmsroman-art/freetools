@@ -1,7 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { TOOLS } from '@/data/tools'
-import { togglePopularity, updateToolLock, saveAnnouncement, toggleAnnouncement } from './actions'
+import { updateToolSettings, updateToolLock, saveAnnouncement, toggleAnnouncement } from './actions'
 import Link from 'next/link'
 
 export default async function AdminDashboard({ searchParams }: { searchParams: Promise<{ tab?: string, start?: string, end?: string }> }) {
@@ -98,23 +98,22 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
       <div className="responsive-grid-sidebar" style={{ gap: "2.5rem" }}>
         {/* Sidebar */}
         <aside style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-           <SidebarItem icon="⭐" name="Top Tools" id="popular" />
+           <SidebarItem icon="🌐" name="Visibility & Search" id="popular" />
            <SidebarItem icon="📊" name="Analytics" id="stats" />
            <SidebarItem icon="📢" name="Announcements" id="announcements" />
            <SidebarItem icon="🔒" name="Locked Tools" id="locks" />
         </aside>
 
         {/* Content Area */}
-        <section className="card" style={{ padding: "2rem" }}>
-          
-          {tab === 'popular' && (
+        <section className="card" style={{ padding: "2rem" }}>           {tab === 'popular' && (
             <div>
-              <h2 style={{ marginBottom: "1.5rem" }}>Popular Tools Management</h2>
+              <h2 style={{ marginBottom: "0.5rem" }}>Global Tool Management</h2>
+              <p style={{ marginBottom: "1.5rem", fontSize: "0.85rem", opacity: 0.6 }}>Control tool visibility across the website and adjust display priority.</p>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "2px solid var(--border-color)", textAlign: "left" }}>
                     <th style={{ padding: "1rem 0", fontSize: "0.75rem", textTransform: "uppercase", color: "var(--text-secondary)" }}>Tool</th>
-                    <th style={{ padding: "1rem 0", fontSize: "0.75rem", textTransform: "uppercase", color: "var(--text-secondary)", textAlign: "center" }}>Visible Rank</th>
+                    <th style={{ padding: "1rem 0", fontSize: "0.75rem", textTransform: "uppercase", color: "var(--text-secondary)", textAlign: "right" }}>Settings</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -122,26 +121,37 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
                     const cfg = configMap[tool.path]
                     const isPop = cfg ? cfg.is_popular : tool.isPopular
                     const rank = cfg ? cfg.order_rank : 999
+                    const isEnabled = cfg ? (cfg.is_enabled !== false) : true
                     return (
-                      <tr key={tool.path} style={{ borderBottom: "1px solid var(--border-color)" }}>
-                        <td style={{ padding: "1rem 0" }}>
+                      <tr key={tool.path} style={{ borderBottom: "1px solid var(--border-color)", opacity: isEnabled ? 1 : 0.6 }}>
+                        <td style={{ padding: "1.25rem 0" }}>
                           <div style={{ fontWeight: 600 }}>{tool.name}</div>
                           <div style={{ fontSize: "0.75rem", opacity: 0.5 }}>{tool.path}</div>
                         </td>
-                        <td style={{ padding: "1rem 0" }}>
+                        <td style={{ padding: "1.25rem 0" }}>
                           <form action={async (formData) => {
                             'use server'
+                            const active = formData.get('is_enabled') === 'true'
                             const pop = formData.get('status') === 'true'
                             const r = parseInt(formData.get('rank') as string) || 999
-                            await togglePopularity(tool.path, pop, r)
-                          }} style={{ display: "flex", justifyContent: "center", gap: "0.5rem" }}>
-                             <input type="number" name="rank" defaultValue={rank} style={{ width: "60px", padding: "0.4rem", borderRadius: "4px", border: "1px solid var(--border-color)" }} />
-                             <select name="status" defaultValue={isPop ? 'true' : 'false'} style={{ padding: "0.4rem", borderRadius: "4px", border: "1px solid var(--border-color)" }}>
-                               <option value="true">Show</option>
-                               <option value="false">Hide</option>
-                             </select>
-                             <button className="btn-primary" style={{ padding: "0.4rem 0.8rem", fontSize: "0.75rem" }}>Save</button>
-                          </form>
+                            const { updateToolSettings } = await import('./actions')
+                            await updateToolSettings(tool.path, pop, r, active)
+                          }} style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", alignItems: "center" }}>
+                              
+                              <select name="is_enabled" defaultValue={isEnabled ? 'true' : 'false'} style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid var(--border-color)", backgroundColor: isEnabled ? "var(--accent-light)" : "transparent" }}>
+                                <option value="true">🟢 Active</option>
+                                <option value="false">⚪ Hidden</option>
+                              </select>
+
+                              <input type="number" name="rank" defaultValue={rank} placeholder="Rank" style={{ width: "80px", padding: "0.5rem", borderRadius: "6px", border: "1px solid var(--border-color)" }} />
+                              
+                              <select name="status" defaultValue={isPop ? 'true' : 'false'} style={{ padding: "0.5rem", borderRadius: "6px", border: "1px solid var(--border-color)" }}>
+                                <option value="true">⭐ Popular</option>
+                                <option value="false">Standard</option>
+                              </select>
+
+                              <button className="btn-primary" style={{ padding: "0.5rem 1rem", fontSize: "0.8rem" }}>Save</button>
+                           </form>
                         </td>
                       </tr>
                     )
