@@ -424,9 +424,9 @@ export default function AutoCaption() {
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <div className="export-btn-row" style={{ display: 'flex', gap: '0.75rem' }}>
               {step !== 'exporting' && !downloadUrl && (
-                <button onClick={exportVideo} className="btn-primary" style={{ flex: 1, height: '2.75rem', fontSize: '0.9rem' }}>
+                <button onClick={exportVideo} className="btn-primary export-main-btn" style={{ flex: 1, height: '2.75rem', fontSize: '0.9rem' }}>
                   🎬 Export with Captions
                 </button>
               )}
@@ -439,17 +439,17 @@ export default function AutoCaption() {
                 </div>
               )}
               {downloadUrl && (
-                <a href={downloadUrl} download={`captioned-${videoFile?.name}`} className="btn-primary"
+                <a href={downloadUrl} download={`captioned-${videoFile?.name}`} className="btn-primary export-main-btn"
                   style={{ flex: 1, height: '2.75rem', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem' }}>
                   ⬇️ Download Video
                 </a>
               )}
               <button onClick={retranscribe}
-                style={{ padding: '0 1rem', height: '2.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem' }}>
+                style={{ padding: '0 1rem', height: '2.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                 ↺ Re-transcribe
               </button>
               <button onClick={() => { setStep('upload'); setVideoFile(null); setVideoUrl(null); setDownloadUrl(null); setCaptions([]) }}
-                style={{ padding: '0 1rem', height: '2.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem' }}>
+                style={{ padding: '0 1rem', height: '2.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                 New Video
               </button>
             </div>
@@ -491,6 +491,8 @@ export default function AutoCaption() {
       <style>{`
         @media (max-width: 768px) {
           .caption-layout { grid-template-columns: 1fr !important; }
+          .export-btn-row { flex-wrap: wrap; }
+          .export-btn-row .export-main-btn { width: 100%; flex: unset !important; }
         }
         @keyframes capPop {
           0% { transform: scale(0.4); opacity: 0; }
