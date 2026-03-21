@@ -6,6 +6,9 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData()
     const file = formData.get('file') as File | null
+    const language = (formData.get('language') as string | null) || null // null = auto-detect
+    const chunkSize = parseInt((formData.get('chunkSize') as string) || '4', 10)
+
     if (!file) return NextResponse.json({ error: 'No audio file provided' }, { status: 400 })
 
     // Convert to base64 data URL for Replicate
@@ -14,8 +17,17 @@ export async function POST(req: NextRequest) {
     const mimeType = file.type || 'audio/wav'
     const dataUrl = `data:${mimeType};base64,${base64}`
 
-    // Use the version-based endpoint (more reliable than model-name endpoint)
-    // openai/whisper large-v3 — known working version on Replicate
+    const replicateInput: Record<string, unknown> = {
+      audio: dataUrl,
+      model: 'large-v3',
+      word_timestamps: true,
+      transcript_output_format: 'segments_only',
+    }
+    // Only pass language if explicitly set (omitting triggers auto-detect)
+    if (language && language !== 'auto') {
+      replicateInput.language = language
+    }
+
     const createRes = await fetch('https://api.replicate.com/v1/predictions', {
       method: 'POST',
       headers: {
@@ -24,13 +36,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         version: '8099696689d249cf8b122d833c36ac3f75505c666a395ca40ef26f68e7d3d16e',
-        input: {
-          audio: dataUrl,
-          model: 'large-v3',
-          word_timestamps: true,
-          transcript_output_format: 'segments_only',
-          language: 'en',
-        }
+        input: replicateInput,
       })
     })
 
@@ -68,33 +74,49 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: errMsg }, { status: 500 })
     }
 
-    // Parse whisper segments into 4-word caption chunks
     const output = prediction.output
-    const rawSegments: Array<{ start: number; end: number; text: string }> =
+    const rawSegments: Array<{ start: number; end: number; text: string; words?: Array<{word: string; start: number; end: number}> }> =
       output?.segments || []
 
-    const captions: Array<{ text: string; start: number; end: number }> = []
+    // Use flat word list if available (accurate timing), else fall back to equal distribution
+    const wordList: Array<{word: string; start: number; end: number}> =
+      output?.words || rawSegments.flatMap(seg => seg.words || [])
 
-    for (const seg of rawSegments) {
-      const words = seg.text.trim().split(/\s+/).filter(Boolean)
-      if (!words.length) continue
+    const captions: Array<{ text: string; start: number; end: number; words?: Array<{word: string; start: number; end: number}> }> = []
 
-      const chunkSize = 4 // 4 words per caption bubble
-      const chunks: string[] = []
-      for (let i = 0; i < words.length; i += chunkSize) {
-        chunks.push(words.slice(i, i + chunkSize).join(' '))
-      }
-
-      const duration = seg.end - seg.start
-      const chunkDur = duration / chunks.length
-
-      chunks.forEach((text, idx) => {
+    if (wordList.length > 0) {
+      // Word-timestamp-based chunking — accurate timing per caption bubble
+      for (let i = 0; i < wordList.length; i += chunkSize) {
+        const chunk = wordList.slice(i, i + chunkSize)
         captions.push({
-          text,
-          start: parseFloat((seg.start + idx * chunkDur).toFixed(2)),
-          end: parseFloat((seg.start + (idx + 1) * chunkDur).toFixed(2)),
+          text: chunk.map(w => w.word).join(' ').trim(),
+          start: parseFloat(chunk[0].start.toFixed(2)),
+          end: parseFloat(chunk[chunk.length - 1].end.toFixed(2)),
+          words: chunk.map(w => ({ word: w.word, start: parseFloat(w.start.toFixed(3)), end: parseFloat(w.end.toFixed(3)) })),
         })
-      })
+      }
+    } else {
+      // Fallback: equal distribution within each segment
+      for (const seg of rawSegments) {
+        const words = seg.text.trim().split(/\s+/).filter(Boolean)
+        if (!words.length) continue
+
+        const chunks: string[] = []
+        for (let i = 0; i < words.length; i += chunkSize) {
+          chunks.push(words.slice(i, i + chunkSize).join(' '))
+        }
+
+        const duration = seg.end - seg.start
+        const chunkDur = duration / chunks.length
+
+        chunks.forEach((text, idx) => {
+          captions.push({
+            text,
+            start: parseFloat((seg.start + idx * chunkDur).toFixed(2)),
+            end: parseFloat((seg.start + (idx + 1) * chunkDur).toFixed(2)),
+          })
+        })
+      }
     }
 
     return NextResponse.json({ captions })

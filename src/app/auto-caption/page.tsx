@@ -5,11 +5,18 @@ import BackButton from '@/components/BackButton'
 import { trackToolUsage } from '@/components/AnalyticsTracker'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+interface CaptionWord {
+  word: string
+  start: number
+  end: number
+}
+
 interface Caption {
   id: string
   text: string
   start: number
   end: number
+  words?: CaptionWord[]
 }
 
 interface CaptionStyle {
@@ -23,14 +30,32 @@ interface CaptionStyle {
   position: 'bottom' | 'center' | 'top'
   outline: boolean
   colorStyle: 'uniform' | 'first' | 'random' | 'alternate'
-  animation: 'none' | 'fade' | 'pop' | 'slide'
+  animation: 'none' | 'fade' | 'pop' | 'slide' | 'karaoke'
 }
 
 const FONTS = ['Impact', 'Arial', 'Verdana', 'Georgia', 'Trebuchet MS']
 
+const LANGUAGES = [
+  { code: 'auto', label: 'Auto-detect' },
+  { code: 'en', label: 'English' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'fr', label: 'French' },
+  { code: 'de', label: 'German' },
+  { code: 'pt', label: 'Portuguese' },
+  { code: 'ar', label: 'Arabic' },
+  { code: 'hi', label: 'Hindi' },
+  { code: 'zh', label: 'Chinese' },
+  { code: 'ja', label: 'Japanese' },
+  { code: 'ko', label: 'Korean' },
+  { code: 'it', label: 'Italian' },
+  { code: 'ru', label: 'Russian' },
+  { code: 'nl', label: 'Dutch' },
+  { code: 'tr', label: 'Turkish' },
+]
+
 const DEFAULT_STYLE: CaptionStyle = {
   fontFamily: 'Impact',
-  fontSize: 30,
+  fontSize: 40,
   textColor: '#ffffff',
   highlightColor: '#f9c22e',
   bgColor: '#000000',
@@ -43,13 +68,20 @@ const DEFAULT_STYLE: CaptionStyle = {
 }
 
 const PRESETS: { name: string; style: CaptionStyle }[] = [
-  { name: '📱 TikTok Pill', style: { ...DEFAULT_STYLE, fontFamily: 'Roboto', bgColor: '#000000', bgOpacity: 0.55, outline: false, animation: 'pop', textColor: '#ffffff', highlightColor: '#f9c22e', fontSize: 26, bold: true, colorStyle: 'first', position: 'bottom' } },
-  { name: '🔥 Hype Beast', style: { ...DEFAULT_STYLE, fontFamily: 'Impact', bgColor: '#000000', bgOpacity: 0, outline: true, animation: 'pop', textColor: '#ffffff', highlightColor: '#ffd700', fontSize: 44, bold: true, colorStyle: 'random', position: 'center' } },
-  { name: '✨ LinkedIn Pro', style: { ...DEFAULT_STYLE, fontFamily: 'Arial', bgColor: '#000000', bgOpacity: 0, outline: true, animation: 'slide', textColor: '#ffffff', highlightColor: '#60a5fa', fontSize: 28, bold: true, colorStyle: 'first', position: 'bottom' } },
-  { name: '🎬 Cinematic', style: { ...DEFAULT_STYLE, fontFamily: 'Georgia', bgColor: '#000000', bgOpacity: 0, outline: true, animation: 'fade', textColor: '#ffffff', highlightColor: '#ffffff', fontSize: 28, bold: false, colorStyle: 'uniform', position: 'bottom' } },
-  { name: '💥 Blockbuster', style: { ...DEFAULT_STYLE, fontFamily: 'Impact', bgColor: '#000000', bgOpacity: 0, outline: true, animation: 'pop', textColor: '#ffffff', highlightColor: '#ff0000', fontSize: 38, bold: true, colorStyle: 'alternate', position: 'bottom' } },
-  { name: '📺 Standard CC', style: { ...DEFAULT_STYLE, fontFamily: 'Arial', bgColor: '#000000', bgOpacity: 0.8, outline: false, animation: 'none', textColor: '#ffffff', highlightColor: '#ffffff', fontSize: 18, bold: false, colorStyle: 'uniform', position: 'bottom' } },
+  { name: '📱 TikTok Pill', style: { ...DEFAULT_STYLE, fontFamily: 'Impact', bgColor: '#000000', bgOpacity: 0.55, outline: false, animation: 'pop', textColor: '#ffffff', highlightColor: '#f9c22e', fontSize: 48, bold: true, colorStyle: 'first', position: 'bottom' } },
+  { name: '🔥 Hype Beast', style: { ...DEFAULT_STYLE, fontFamily: 'Impact', bgColor: '#000000', bgOpacity: 0, outline: true, animation: 'pop', textColor: '#ffffff', highlightColor: '#ffd700', fontSize: 80, bold: true, colorStyle: 'random', position: 'center' } },
+  { name: '✨ LinkedIn Pro', style: { ...DEFAULT_STYLE, fontFamily: 'Arial', bgColor: '#000000', bgOpacity: 0, outline: true, animation: 'slide', textColor: '#ffffff', highlightColor: '#60a5fa', fontSize: 52, bold: true, colorStyle: 'first', position: 'bottom' } },
+  { name: '🎬 Cinematic', style: { ...DEFAULT_STYLE, fontFamily: 'Georgia', bgColor: '#000000', bgOpacity: 0, outline: true, animation: 'fade', textColor: '#ffffff', highlightColor: '#ffffff', fontSize: 52, bold: false, colorStyle: 'uniform', position: 'bottom' } },
+  { name: '💥 Blockbuster', style: { ...DEFAULT_STYLE, fontFamily: 'Impact', bgColor: '#000000', bgOpacity: 0, outline: true, animation: 'pop', textColor: '#ffffff', highlightColor: '#ff0000', fontSize: 68, bold: true, colorStyle: 'alternate', position: 'bottom' } },
+  { name: '📺 Standard CC', style: { ...DEFAULT_STYLE, fontFamily: 'Arial', bgColor: '#000000', bgOpacity: 0.8, outline: false, animation: 'none', textColor: '#ffffff', highlightColor: '#ffffff', fontSize: 32, bold: false, colorStyle: 'uniform', position: 'bottom' } },
+  { name: '📸 Instagram Reels', style: { ...DEFAULT_STYLE, fontFamily: 'Impact', bgColor: '#e1306c', bgOpacity: 0.75, outline: false, animation: 'pop', textColor: '#ffffff', highlightColor: '#ffd700', fontSize: 52, bold: true, colorStyle: 'first', position: 'bottom' } },
+  { name: '▶️ YouTube Shorts', style: { ...DEFAULT_STYLE, fontFamily: 'Impact', bgColor: '#ff0000', bgOpacity: 0.8, outline: false, animation: 'slide', textColor: '#ffffff', highlightColor: '#ffffff', fontSize: 56, bold: true, colorStyle: 'uniform', position: 'bottom' } },
+  { name: '🌟 Neon Glow', style: { ...DEFAULT_STYLE, fontFamily: 'Arial', bgColor: '#000000', bgOpacity: 0, outline: true, animation: 'fade', textColor: '#00ffcc', highlightColor: '#ff00ff', fontSize: 56, bold: true, colorStyle: 'alternate', position: 'center' } },
+  { name: '🎤 Karaoke', style: { ...DEFAULT_STYLE, fontFamily: 'Impact', bgColor: '#000000', bgOpacity: 0.6, outline: false, animation: 'karaoke', textColor: '#ffffff', highlightColor: '#f9c22e', fontSize: 56, bold: true, colorStyle: 'uniform', position: 'bottom' } },
 ]
+
+// Module-level FFmpeg cache to avoid re-loading 30MB WASM on every export
+let ffmpegCache: { instance: any; ready: boolean } | null = null
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function AutoCaption() {
@@ -63,9 +95,15 @@ export default function AutoCaption() {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(0)
+  const [language, setLanguage] = useState<string>('auto')
+  const [exportQuality, setExportQuality] = useState<'fast' | 'balanced' | 'high'>('balanced')
+  const [engineUsed, setEngineUsed] = useState<string | null>(null)
+  const [transcribingStatus, setTranscribingStatus] = useState<string>('')
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // ── Cleanup ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -88,6 +126,39 @@ export default function AutoCaption() {
     return () => clearTimeout(timer)
   }, [step])
 
+  // ── Fullscreen change listener ─────────────────────────────────────────────
+  useEffect(() => {
+    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', handleFsChange)
+    document.addEventListener('webkitfullscreenchange', handleFsChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange)
+      document.removeEventListener('webkitfullscreenchange', handleFsChange)
+    }
+  }, [])
+
+  // ── Body scroll lock for iOS pseudo-fullscreen ────────────────────────────
+  useEffect(() => {
+    document.body.style.overflow = isFullscreen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [isFullscreen])
+
+  // ── Toggle fullscreen ──────────────────────────────────────────────────────
+  const toggleFullscreen = () => {
+    const el = containerRef.current
+    if (!el) return
+    // iOS Safari doesn't support requestFullscreen on arbitrary elements — use CSS pseudo-fullscreen
+    if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+      setIsFullscreen(f => !f)
+      return
+    }
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.() ?? (el as any).webkitRequestFullscreen?.()
+    } else {
+      document.exitFullscreen?.() ?? (document as any).webkitExitFullscreen?.()
+    }
+  }
+
   // ── Upload ─────────────────────────────────────────────────────────────────
   const handleUpload = (f: File | null) => {
     if (!f) { setVideoFile(null); setVideoUrl(null); return }
@@ -96,6 +167,7 @@ export default function AutoCaption() {
     setVideoUrl(URL.createObjectURL(f))
     setDownloadUrl(null)
     setCaptions([])
+    setEngineUsed(null)
   }
 
   // ── 1. Extract audio using decodeAudioData (reads entire file) ────────────
@@ -105,7 +177,6 @@ export default function AutoCaption() {
     const decoded = await audioCtx.decodeAudioData(arrayBuffer)
     await audioCtx.close()
 
-    // Re-render as 16kHz mono for tiny file size (~2MB / 2 min)
     const sampleRate = 16000
     const offlineCtx = new OfflineAudioContext(1, Math.ceil(decoded.duration * sampleRate), sampleRate)
     const source = offlineCtx.createBufferSource()
@@ -114,7 +185,6 @@ export default function AutoCaption() {
     source.start(0)
     const rendered = await offlineCtx.startRendering()
 
-    // Encode to WAV
     const samples = rendered.getChannelData(0)
     const buf = new ArrayBuffer(44 + samples.length * 2)
     const view = new DataView(buf)
@@ -133,26 +203,55 @@ export default function AutoCaption() {
     return new Blob([buf], { type: 'audio/wav' })
   }
 
-  // ── 2. Transcribe with Whisper via Replicate ───────────────────────────────
-  const transcribe = async () => {
-    if (!videoFile) return
+  // ── 2. Transcribe: Whisper primary, Gemini fallback ───────────────────────
+  const transcribe = async (existingVideoFile?: File | null) => {
+    const file = existingVideoFile ?? videoFile
+    if (!file) return
     setError(null)
+    setEngineUsed(null)
 
     try {
       setStep('extracting')
-      const audioBlob = await extractAudioWav(videoFile)
+      const audioBlob = await extractAudioWav(file)
 
       setStep('transcribing')
+      setTranscribingStatus('Whisper AI is processing your audio…')
+
       const fd = new FormData()
       fd.append('file', audioBlob, 'audio.wav')
-      const res = await fetch('/api/whisper', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (!res.ok || data.error) throw new Error(data.error || 'Transcription failed')
+      fd.append('language', language)
+      fd.append('chunkSize', '4')
+
+      let data: any = null
+      let usedEngine = 'Whisper'
+
+      const whisperRes = await fetch('/api/whisper', { method: 'POST', body: fd })
+      const whisperData = await whisperRes.json()
+
+      if (!whisperRes.ok || whisperData.error) {
+        // Fallback to Gemini
+        setTranscribingStatus('Switching to backup engine…')
+        usedEngine = 'Gemini'
+        const fd2 = new FormData()
+        fd2.append('file', audioBlob, 'audio.webm')
+        fd2.append('language', language)
+        const geminiRes = await fetch('/api/transcribe', { method: 'POST', body: fd2 })
+        const geminiData = await geminiRes.json()
+        if (!geminiRes.ok || geminiData.error) throw new Error(geminiData.error || 'Transcription failed')
+        data = geminiData
+      } else {
+        data = whisperData
+      }
 
       const caps: Caption[] = data.captions.map((c: any, i: number) => ({
-        id: `cap-${i}`, text: c.text, start: c.start, end: c.end
+        id: `cap-${i}`,
+        text: c.text,
+        start: c.start,
+        end: c.end,
+        words: c.words,
       }))
       setCaptions(caps)
+      setEngineUsed(usedEngine)
       setStep('edit')
     } catch (e: any) {
       setError(e.message)
@@ -160,39 +259,78 @@ export default function AutoCaption() {
     }
   }
 
+  // ── Re-transcribe ──────────────────────────────────────────────────────────
+  const retranscribe = () => {
+    if (!window.confirm('Re-transcribe? Your current caption edits will be lost.')) return
+    transcribe(videoFile)
+  }
+
   // ── Caption editing ────────────────────────────────────────────────────────
   const updateCaption = (id: string, text: string) =>
     setCaptions(prev => prev.map(c => c.id === id ? { ...c, text } : c))
+
+  // ── Split caption ──────────────────────────────────────────────────────────
+  const splitCaption = (id: string, splitAt: number) => {
+    setCaptions(prev => {
+      const idx = prev.findIndex(c => c.id === id)
+      if (idx === -1) return prev
+      const cap = prev[idx]
+      const words = cap.text.trim().split(/\s+/)
+      if (words.length < 2 || splitAt < 1 || splitAt >= words.length) return prev
+      const mid = (cap.start + cap.end) / 2
+      const a: Caption = { id: `${cap.id}-a`, text: words.slice(0, splitAt).join(' '), start: cap.start, end: parseFloat(mid.toFixed(2)) }
+      const b: Caption = { id: `${cap.id}-b`, text: words.slice(splitAt).join(' '), start: parseFloat(mid.toFixed(2)), end: cap.end }
+      return [...prev.slice(0, idx), a, b, ...prev.slice(idx + 1)]
+    })
+  }
 
   // ── Export with FFmpeg.wasm ────────────────────────────────────────────────
   const exportVideo = async () => {
     if (!videoFile || !captions.length) return
     trackToolUsage('Video Exported')
     setStep('exporting'); setExportProgress(5)
+
+    const qualityMap = {
+      fast:     ['-preset', 'ultrafast', '-crf', '28'],
+      balanced: ['-preset', 'fast',      '-crf', '23'],
+      high:     ['-preset', 'medium',    '-crf', '18'],
+    }
+
     try {
       const { FFmpeg } = await import('@ffmpeg/ffmpeg')
       const { fetchFile, toBlobURL } = await import('@ffmpeg/util')
-      const ffmpeg = new FFmpeg()
-      ffmpeg.on('progress', ({ progress }) => setExportProgress(Math.round(progress * 100)))
-      const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd'
-      await ffmpeg.load({
-        coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
-      })
+
+      // Reuse cached FFmpeg instance if already loaded
+      if (!ffmpegCache || !ffmpegCache.ready) {
+        const ffmpeg = new FFmpeg()
+        ffmpeg.on('progress', ({ progress }) => setExportProgress(Math.round(progress * 100)))
+        const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd'
+        await ffmpeg.load({
+          coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+          wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+        })
+        ffmpegCache = { instance: ffmpeg, ready: true }
+      } else {
+        // Re-attach progress listener to existing instance
+        ffmpegCache.instance.on('progress', ({ progress }: { progress: number }) =>
+          setExportProgress(Math.round(progress * 100)))
+      }
+
+      const ffmpeg = ffmpegCache.instance
       setExportProgress(20)
+
       await ffmpeg.writeFile('input.mp4', await fetchFile(videoFile))
-      
-      // Download a standard bold font so ffmpeg.wasm can render subtitles
       await ffmpeg.writeFile('Roboto-Bold.ttf', await fetchFile('https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Bold.ttf'))
-      
+
       const assStyleOverride = { ...style, fontFamily: 'Roboto' }
       const assBlob = new Blob([buildASS(captions, assStyleOverride)], { type: 'text/plain' })
       await ffmpeg.writeFile('caps.ass', await fetchFile(assBlob))
       setExportProgress(40)
-      
-      const code = await ffmpeg.exec(['-i', 'input.mp4', '-vf', 'ass=caps.ass:fontsdir=.', '-c:a', 'copy', '-preset', 'ultrafast', 'output.mp4'])
+
+      const qualityFlags = qualityMap[exportQuality]
+      const code = await ffmpeg.exec(['-i', 'input.mp4', '-vf', 'ass=caps.ass:fontsdir=.', '-c:a', 'copy', ...qualityFlags, 'output.mp4'])
       if (code !== 0) throw new Error('FFmpeg processing failed.')
-      
+
       setExportProgress(90)
       const out = await ffmpeg.readFile('output.mp4')
       const blob = new Blob([out as unknown as BlobPart], { type: 'video/mp4' })
@@ -209,19 +347,26 @@ export default function AutoCaption() {
 
   // ── Loading screens ────────────────────────────────────────────────────────
   if (step === 'upload') {
-    return <UploadStep videoUrl={videoUrl} videoFile={videoFile} onUpload={handleUpload} onTranscribe={transcribe} error={error} />
+    return <UploadStep videoUrl={videoUrl} videoFile={videoFile} onUpload={handleUpload} onTranscribe={() => transcribe()} error={error} language={language} onLanguageChange={setLanguage} />
   }
   if (step === 'extracting' || step === 'transcribing') {
-    return <LoadingStep stage={step} />
+    return <LoadingStep stage={step} status={transcribingStatus} />
   }
 
   // ── Edit View ──────────────────────────────────────────────────────────────
   return (
     <main style={{ padding: '1.5rem 0', maxWidth: '1200px', margin: '0 auto' }}>
       <BackButton />
-      <h1 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '0.25rem', letterSpacing: '-0.5px' }}>
-        ✨ AI Auto-Caption Editor
-      </h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.5px', margin: 0 }}>
+          ✨ AI Auto-Caption Editor
+        </h1>
+        {engineUsed && (
+          <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '999px', background: engineUsed === 'Whisper' ? '#dbeafe' : '#dcfce7', color: engineUsed === 'Whisper' ? '#1d4ed8' : '#15803d', fontWeight: 700 }}>
+            {engineUsed === 'Whisper' ? '🎙️ Whisper' : '🤖 Gemini'} · {language === 'auto' ? 'Auto-detected' : LANGUAGES.find(l => l.code === language)?.label ?? language}
+          </span>
+        )}
+      </div>
       <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
         Edit captions, style them, then export.
       </p>
@@ -233,40 +378,81 @@ export default function AutoCaption() {
 
         {/* ── LEFT: Video Preview ── */}
         <div>
-          <div style={{ position: 'relative', background: '#000', borderRadius: '12px', overflow: 'hidden' }}>
-            <video ref={videoRef} src={videoUrl!} controls style={{ width: '100%', display: 'block', maxHeight: '420px', objectFit: 'contain' }} />
-            {/* Caption overlay */}
+          <div
+            ref={containerRef}
+            className={`video-container${isFullscreen ? ' video-container--fs' : ''}`}
+            style={{ position: 'relative', background: '#000', borderRadius: '12px', overflow: 'hidden' }}
+          >
+            <video ref={videoRef} src={videoUrl!} controls playsInline
+              style={{ width: '100%', display: 'block', maxHeight: '420px', objectFit: 'contain' }} />
             {captions.length > 0 && activeCaption && (
-              <CaptionOverlay caption={activeCaption} style={style} videoRef={videoRef} />
+              <CaptionOverlay caption={activeCaption} style={style} videoRef={videoRef} currentTime={currentTime} />
             )}
             <canvas ref={canvasRef} style={{ display: 'none' }} />
+            {/* Custom fullscreen button — replaces native video fullscreen */}
+            <button
+              onClick={toggleFullscreen}
+              title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              style={{
+                position: 'absolute', top: '8px', right: '8px', zIndex: 30,
+                background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '6px',
+                width: '32px', height: '32px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#fff', fontSize: '15px', lineHeight: 1,
+              }}
+            >
+              {isFullscreen ? '✕' : '⛶'}
+            </button>
           </div>
 
-          {/* Export Row */}
-          <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.75rem' }}>
+          {/* Quality + Export Row */}
+          <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {/* Quality selector */}
             {step !== 'exporting' && !downloadUrl && (
-              <button onClick={exportVideo} className="btn-primary" style={{ flex: 1, height: '2.75rem', fontSize: '0.9rem' }}>
-                🎬 Export with Captions
-              </button>
-            )}
-            {step === 'exporting' && (
-              <div style={{ flex: 1 }}>
-                <div style={{ background: 'var(--bg-secondary)', borderRadius: '6px', height: '10px', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', background: 'var(--accent)', width: `${exportProgress}%`, transition: 'width 0.3s ease' }} />
-                </div>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.4rem', textAlign: 'center' }}>Exporting… {exportProgress}%</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Export quality:</span>
+                {(['fast', 'balanced', 'high'] as const).map(q => (
+                  <button key={q} onClick={() => setExportQuality(q)} style={{
+                    flex: 1, height: '1.75rem', borderRadius: '6px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer',
+                    border: '1px solid var(--border-color)',
+                    background: exportQuality === q ? 'var(--accent)' : 'var(--bg-secondary)',
+                    color: exportQuality === q ? '#fff' : 'var(--text-primary)',
+                  }}>
+                    {q.charAt(0).toUpperCase() + q.slice(1)}
+                  </button>
+                ))}
               </div>
             )}
-            {downloadUrl && (
-              <a href={downloadUrl} download={`captioned-${videoFile?.name}`} className="btn-primary"
-                style={{ flex: 1, height: '2.75rem', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem' }}>
-                ⬇️ Download Video
-              </a>
-            )}
-            <button onClick={() => { setStep('upload'); setVideoFile(null); setVideoUrl(null); setDownloadUrl(null); setCaptions([]) }}
-              style={{ padding: '0 1.25rem', height: '2.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.875rem' }}>
-              ↺ Start Over
-            </button>
+
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              {step !== 'exporting' && !downloadUrl && (
+                <button onClick={exportVideo} className="btn-primary" style={{ flex: 1, height: '2.75rem', fontSize: '0.9rem' }}>
+                  🎬 Export with Captions
+                </button>
+              )}
+              {step === 'exporting' && (
+                <div style={{ flex: 1 }}>
+                  <div style={{ background: 'var(--bg-secondary)', borderRadius: '6px', height: '10px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', background: 'var(--accent)', width: `${exportProgress}%`, transition: 'width 0.3s ease' }} />
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.4rem', textAlign: 'center' }}>Exporting… {exportProgress}%</p>
+                </div>
+              )}
+              {downloadUrl && (
+                <a href={downloadUrl} download={`captioned-${videoFile?.name}`} className="btn-primary"
+                  style={{ flex: 1, height: '2.75rem', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem' }}>
+                  ⬇️ Download Video
+                </a>
+              )}
+              <button onClick={retranscribe}
+                style={{ padding: '0 1rem', height: '2.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem' }}>
+                ↺ Re-transcribe
+              </button>
+              <button onClick={() => { setStep('upload'); setVideoFile(null); setVideoUrl(null); setDownloadUrl(null); setCaptions([]) }}
+                style={{ padding: '0 1rem', height: '2.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem' }}>
+                New Video
+              </button>
+            </div>
           </div>
         </div>
 
@@ -292,6 +478,7 @@ export default function AutoCaption() {
               captions={captions}
               currentTime={currentTime}
               onUpdate={updateCaption}
+              onSplit={splitCaption}
               onSeek={t => { if (videoRef.current) videoRef.current.currentTime = t }}
             />
           )}
@@ -305,18 +492,50 @@ export default function AutoCaption() {
         @media (max-width: 768px) {
           .caption-layout { grid-template-columns: 1fr !important; }
         }
-        @keyframes capPop { 
-          0% { transform: scale(0.4); opacity: 0; } 
-          50% { transform: scale(1.15); opacity: 1; } 
-          100% { transform: scale(1); opacity: 1; } 
+        @keyframes capPop {
+          0% { transform: scale(0.4); opacity: 0; }
+          50% { transform: scale(1.15); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
         }
-        @keyframes capFade { 
-          0% { opacity: 0; transform: scale(0.92); } 
-          100% { opacity: 1; transform: scale(1); } 
+        @keyframes capFade {
+          0% { opacity: 0; transform: scale(0.92); }
+          100% { opacity: 1; transform: scale(1); }
         }
-        @keyframes capSlide { 
-          0% { transform: translateY(25px); opacity: 0; } 
-          100% { transform: translateY(0); opacity: 1; } 
+        @keyframes capSlide {
+          0% { transform: translateY(25px); opacity: 0; }
+          100% { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Hide the native video fullscreen button — replaced by our custom button */
+        video::-webkit-media-controls-fullscreen-button { display: none !important; }
+
+        /* Standard fullscreen: Chrome, Firefox, Edge — container fills screen with overlay included */
+        .video-container:fullscreen,
+        .video-container:-webkit-full-screen {
+          border-radius: 0 !important;
+          background: #000;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .video-container:fullscreen video,
+        .video-container:-webkit-full-screen video {
+          max-height: 100vh !important;
+          height: 100% !important;
+          width: 100% !important;
+          object-fit: contain;
+        }
+
+        /* iOS Safari / fallback: CSS pseudo-fullscreen using position:fixed */
+        .video-container--fs {
+          position: fixed !important;
+          top: 0 !important; left: 0 !important;
+          width: 100vw !important; height: 100vh !important;
+          z-index: 9999 !important; border-radius: 0 !important;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .video-container--fs video {
+          max-height: 100vh !important;
+          height: 100% !important;
+          width: 100% !important;
         }
       `}</style>
     </main>
@@ -324,58 +543,51 @@ export default function AutoCaption() {
 }
 
 // ─── Caption Overlay on Video ─────────────────────────────────────────────────
-function CaptionOverlay({ caption, style, videoRef }: { caption: Caption; style: CaptionStyle; videoRef?: React.RefObject<HTMLVideoElement | null> }) {
-  const [scale, setScale] = useState(1);
-  const [vidRect, setVidRect] = useState({ top: 0, height: '100%' });
+function CaptionOverlay({ caption, style, videoRef, currentTime }: {
+  caption: Caption
+  style: CaptionStyle
+  videoRef?: React.RefObject<HTMLVideoElement | null>
+  currentTime: number
+}) {
+  const [scale, setScale] = useState(1)
+  const [vidRect, setVidRect] = useState({ top: 0, height: '100%' })
 
-  // Calculate pixel-perfect scale matching FFmpeg PlayResY=720 mapping
   useEffect(() => {
-    const video = videoRef?.current;
-    if (!video) return;
+    const video = videoRef?.current
+    if (!video) return
 
     const updateScale = () => {
-      const { videoWidth, videoHeight, offsetWidth, offsetHeight } = video;
-      if (!videoWidth || !videoHeight || !offsetWidth) return;
-
-      const videoRatio = videoWidth / videoHeight;
-      const boxRatio = offsetWidth / offsetHeight;
-
-      let actualHeight;
-      // Is video letterboxed or pillarboxed?
+      const { videoWidth, videoHeight, offsetWidth, offsetHeight } = video
+      if (!videoWidth || !videoHeight || !offsetWidth) return
+      const videoRatio = videoWidth / videoHeight
+      const boxRatio = offsetWidth / offsetHeight
+      let actualHeight: number
       if (boxRatio > videoRatio) {
-        // Pillarbox: touches top/bottom
-        actualHeight = offsetHeight;
-        setVidRect({ top: 0, height: `${offsetHeight}px` });
+        actualHeight = offsetHeight
+        setVidRect({ top: 0, height: `${offsetHeight}px` })
       } else {
-        // Letterbox: touches sides, black bars top/bottom
-        actualHeight = offsetWidth / videoRatio;
-        setVidRect({ top: (offsetHeight - actualHeight) / 2, height: `${actualHeight}px` });
+        actualHeight = offsetWidth / videoRatio
+        setVidRect({ top: (offsetHeight - actualHeight) / 2, height: `${actualHeight}px` })
       }
-
-      // In FFmpeg, PlayResY is 720 and ASS fontSize is (style.fontSize * 2).
-      // Target screen size = (fontSize * 2) * (actualHeight / 720) = fontSize * (actualHeight / 360)
-      setScale(actualHeight / 360);
-    };
-
-    updateScale();
-    window.addEventListener('resize', updateScale);
-    let observer: ResizeObserver | null = null;
-    if (window.ResizeObserver) {
-      observer = new ResizeObserver(updateScale);
-      observer.observe(video);
+      setScale(actualHeight / 720)
     }
-    video.addEventListener('loadedmetadata', updateScale);
+
+    updateScale()
+    window.addEventListener('resize', updateScale)
+    let observer: ResizeObserver | null = null
+    if (window.ResizeObserver) {
+      observer = new ResizeObserver(updateScale)
+      observer.observe(video)
+    }
+    video.addEventListener('loadedmetadata', updateScale)
 
     return () => {
-      window.removeEventListener('resize', updateScale);
-      if (observer) observer.disconnect();
-      video.removeEventListener('loadedmetadata', updateScale);
-    };
-  }, [videoRef]);
+      window.removeEventListener('resize', updateScale)
+      if (observer) observer.disconnect()
+      video.removeEventListener('loadedmetadata', updateScale)
+    }
+  }, [videoRef])
 
-  const words = caption.text.split(' ')
-
-  // Inner wrapper snapping exactly to the visible video area
   const wrapperStyle: React.CSSProperties = {
     position: 'absolute',
     left: 0,
@@ -385,20 +597,20 @@ function CaptionOverlay({ caption, style, videoRef }: { caption: Caption; style:
     pointerEvents: 'none',
     zIndex: 20,
     overflow: 'hidden'
-  };
+  }
 
   const posStyle: React.CSSProperties = {
     position: 'absolute',
     left: '50%',
     transform: 'translateX(-50%)',
-    ...(style.position === 'bottom' ? { bottom: `${40 * (scale / 2)}px` } :
-       style.position === 'top' ? { top: `${40 * (scale / 2)}px` } :
+    ...(style.position === 'bottom' ? { bottom: `${40 * scale}px` } :
+       style.position === 'top' ? { top: `${40 * scale}px` } :
        { top: '50%', transform: 'translate(-50%, -50%)' }),
     textAlign: 'center',
     maxWidth: '88%',
-    padding: `${0.2 * scale}rem ${0.45 * scale}rem`,
+    padding: `${0.4 * scale}rem ${0.9 * scale}rem`,
     backgroundColor: `${style.bgColor}${Math.round(style.bgOpacity * 255).toString(16).padStart(2, '0')}`,
-    borderRadius: `${8 * (scale / 2)}px`,
+    borderRadius: `${8 * scale}px`,
     fontFamily: style.fontFamily,
     fontSize: Math.max(8, style.fontSize * scale) + 'px',
     fontWeight: style.bold ? 800 : 400,
@@ -412,7 +624,30 @@ function CaptionOverlay({ caption, style, videoRef }: { caption: Caption; style:
   const animDur = style.animation === 'fade' ? '0.25s' : '0.2s'
 
   const renderText = () => {
-    const cs = style.colorStyle || ((style as any).highlightFirst ? 'first' : 'uniform')
+    const words = caption.text.split(' ')
+    const cs = style.colorStyle
+
+    // Karaoke mode: highlight word-by-word based on currentTime
+    if (style.animation === 'karaoke' && caption.words && caption.words.length > 0) {
+      return (
+        <span>
+          {caption.words.map((w, i) => {
+            const isActive = currentTime >= w.start && currentTime <= w.end
+            const isPast = currentTime > w.end
+            return (
+              <span key={i} style={{
+                color: isActive ? style.highlightColor : isPast ? style.highlightColor : style.textColor,
+                opacity: isPast ? 0.8 : 1,
+                transition: 'color 0.05s',
+              }}>
+                {w.word}{i < caption.words!.length - 1 ? ' ' : ''}
+              </span>
+            )
+          })}
+        </span>
+      )
+    }
+
     if (cs === 'uniform' || words.length <= 1) return <span style={{ color: style.textColor }}>{caption.text}</span>
     if (cs === 'first') return <span><span style={{ color: style.highlightColor }}>{words[0]}</span>{' '}<span style={{ color: style.textColor }}>{words.slice(1).join(' ')}</span></span>
     if (cs === 'alternate') return <span>{words.map((w, i) => <span key={i} style={{ color: i % 2 === 0 ? style.highlightColor : style.textColor }}>{w}{i < words.length - 1 ? ' ' : ''}</span>)}</span>
@@ -425,7 +660,7 @@ function CaptionOverlay({ caption, style, videoRef }: { caption: Caption; style:
   return (
     <div style={wrapperStyle}>
       <div style={posStyle}>
-        <div key={caption.id} style={{ animation: `${animKeyframe} ${animDur} ease-out forwards` }}>
+        <div key={caption.id} style={{ animation: animKeyframe !== 'none' && style.animation !== 'karaoke' ? `${animKeyframe} ${animDur} ease-out forwards` : undefined }}>
           {renderText()}
         </div>
       </div>
@@ -434,14 +669,15 @@ function CaptionOverlay({ caption, style, videoRef }: { caption: Caption; style:
 }
 
 // ─── 5-Bubble Caption Carousel ────────────────────────────────────────────────
-function CaptionCarousel({ captions, currentTime, onUpdate, onSeek }: {
+function CaptionCarousel({ captions, currentTime, onUpdate, onSplit, onSeek }: {
   captions: Caption[]
   currentTime: number
   onUpdate: (id: string, text: string) => void
+  onSplit: (id: string, splitAt: number) => void
   onSeek: (t: number) => void
 }) {
   const activeIdx = captions.findIndex(c => currentTime >= c.start && currentTime <= c.end)
-  
+
   let idx = activeIdx
   if (idx === -1) {
     let minDiff = Infinity
@@ -452,7 +688,6 @@ function CaptionCarousel({ captions, currentTime, onUpdate, onSeek }: {
     if (idx === -1 && captions.length > 0) idx = 0
   }
 
-  // Get 5 items: [idx-2, idx-1, idx, idx+1, idx+2]
   const slots = [-2, -1, 0, 1, 2].map(offset => {
     const i = idx + offset
     return i >= 0 && i < captions.length ? { cap: captions[i], offset } : null
@@ -480,7 +715,6 @@ function CaptionCarousel({ captions, currentTime, onUpdate, onSeek }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-      {/* Scroll info */}
       <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', marginBottom: '0.25rem' }}>
         {captions.length} captions · Click any to seek · Edit to change text
       </p>
@@ -491,17 +725,27 @@ function CaptionCarousel({ captions, currentTime, onUpdate, onSeek }: {
         )
         const { cap, offset } = slot
         const isActive = offset === 0
+        const words = cap.text.trim().split(/\s+/)
         return (
           <div key={cap.id} onClick={() => onSeek(cap.start)} style={bubbleStyle(offset)}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
               <span style={{ fontSize: '0.7rem', fontFamily: 'monospace', color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }}>
                 {fmt(cap.start)} → {fmt(cap.end)}
               </span>
-              {isActive && (
-                <span style={{ fontSize: '0.65rem', background: 'var(--accent)', color: '#fff', padding: '1px 6px', borderRadius: '999px', fontWeight: 700 }}>
-                  ● LIVE
-                </span>
-              )}
+              <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                {isActive && words.length >= 2 && (
+                  <button
+                    onClick={e => { e.stopPropagation(); onSplit(cap.id, Math.ceil(words.length / 2)) }}
+                    style={{ fontSize: '0.62rem', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', padding: '1px 6px', borderRadius: '999px', cursor: 'pointer', fontWeight: 700 }}>
+                    ✂ Split
+                  </button>
+                )}
+                {isActive && (
+                  <span style={{ fontSize: '0.65rem', background: 'var(--accent)', color: '#fff', padding: '1px 6px', borderRadius: '999px', fontWeight: 700 }}>
+                    ● LIVE
+                  </span>
+                )}
+              </div>
             </div>
             <textarea
               value={cap.text}
@@ -520,13 +764,12 @@ function CaptionCarousel({ captions, currentTime, onUpdate, onSeek }: {
         )
       })}
 
-      {/* Full scrollable list below */}
       <details style={{ marginTop: '0.75rem' }}>
         <summary style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none', padding: '0.4rem 0' }}>
           View all {captions.length} captions ▾
         </summary>
         <div style={{ maxHeight: '250px', overflowY: 'auto', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-          {captions.map((cap, i) => {
+          {captions.map((cap) => {
             const isActive = currentTime >= cap.start && currentTime <= cap.end
             return (
               <div key={cap.id} onClick={() => onSeek(cap.start)} style={{
@@ -549,7 +792,7 @@ function CaptionCarousel({ captions, currentTime, onUpdate, onSeek }: {
 }
 
 // ─── Upload Step ──────────────────────────────────────────────────────────────
-function UploadStep({ videoUrl, videoFile, onUpload, onTranscribe, error }: any) {
+function UploadStep({ videoUrl, videoFile, onUpload, onTranscribe, error, language, onLanguageChange }: any) {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     const f = e.dataTransfer.files[0]
@@ -589,11 +832,22 @@ function UploadStep({ videoUrl, videoFile, onUpload, onTranscribe, error }: any)
               </div>
               <button onClick={() => onUpload(null)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontWeight: 700 }}>Change</button>
             </div>
+
+            {/* Language selector */}
+            <div style={{ marginBottom: '1rem', textAlign: 'left' }}>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                🌐 Spoken language
+              </label>
+              <select value={language} onChange={e => onLanguageChange(e.target.value)} style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.label}</option>)}
+              </select>
+            </div>
+
             <button onClick={onTranscribe} className="btn-primary" style={{ width: '100%', height: '3.25rem', fontSize: '1rem' }}>
               ✨ Generate AI Captions
             </button>
             <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.65rem' }}>
-              Fast AI Transcription · Supports 30+ languages · ~1–2 min for long videos
+              Whisper AI · 30+ languages · ~1–2 min for long videos
             </p>
           </div>
         )}
@@ -601,8 +855,8 @@ function UploadStep({ videoUrl, videoFile, onUpload, onTranscribe, error }: any)
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.875rem', marginTop: '1.5rem' }}>
         {[
-          { icon: '🎙️', title: 'Smart Transcription', desc: 'Highly accurate speech-to-text engine' },
-          { icon: '🎨', title: 'Style Editor', desc: 'Fonts, colors, multi-color captions' },
+          { icon: '🎙️', title: 'Smart Transcription', desc: 'Word-accurate speech-to-text with precise timing' },
+          { icon: '🎨', title: 'Style Editor', desc: 'Fonts, colors, karaoke & multi-color captions' },
           { icon: '📤', title: 'Export Video', desc: 'Captions burned into final video' },
         ].map(f => (
           <div key={f.title} className="card" style={{ textAlign: 'center', padding: '1rem' }}>
@@ -617,12 +871,21 @@ function UploadStep({ videoUrl, videoFile, onUpload, onTranscribe, error }: any)
 }
 
 // ─── Loading Step ─────────────────────────────────────────────────────────────
-function LoadingStep({ stage }: { stage: 'extracting' | 'transcribing' }) {
+function LoadingStep({ stage, status }: { stage: 'extracting' | 'transcribing'; status?: string }) {
   const [dots, setDots] = useState('.')
+  const [elapsed, setElapsed] = useState(0)
+
   useEffect(() => {
     const i = setInterval(() => setDots(d => d.length >= 3 ? '.' : d + '.'), 500)
     return () => clearInterval(i)
   }, [])
+
+  useEffect(() => {
+    if (stage !== 'transcribing') return
+    setElapsed(0)
+    const i = setInterval(() => setElapsed(s => s + 1), 1000)
+    return () => clearInterval(i)
+  }, [stage])
 
   return (
     <main className="container" style={{ padding: '6rem 0', maxWidth: '550px', textAlign: 'center' }}>
@@ -635,8 +898,13 @@ function LoadingStep({ stage }: { stage: 'extracting' | 'transcribing' }) {
       <p style={{ color: 'var(--text-secondary)', marginTop: '0.65rem', fontSize: '0.95rem' }}>
         {stage === 'extracting'
           ? 'Extracting audio from your video (this is fast!)…'
-          : 'AI is processing your audio. This takes 30–90 seconds depending on video length.'}
+          : (status || 'AI is processing your audio. This takes 30–90 seconds depending on video length.')}
       </p>
+      {stage === 'transcribing' && elapsed > 0 && (
+        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+          {elapsed}s elapsed
+        </p>
+      )}
       <div style={{ marginTop: '2rem', display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
         {[0, 1, 2, 3, 4].map(i => (
           <div key={i} style={{
@@ -646,7 +914,6 @@ function LoadingStep({ stage }: { stage: 'extracting' | 'transcribing' }) {
         ))}
       </div>
 
-      {/* Step indicators */}
       <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '2rem' }}>
         {[
           { label: 'Extract Audio', done: true, active: stage === 'extracting' },
@@ -677,7 +944,7 @@ function StyleEditor({ style, onChange }: { style: CaptionStyle; onChange: (s: C
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
           {PRESETS.map(p => (
             <button key={p.name} onClick={() => onChange(p.style)} style={{
-              padding: '0.6rem 0.25rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700,
+              padding: '0.6rem 0.25rem', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 700,
               background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', cursor: 'pointer', transition: 'all 0.2s',
             }}>{p.name}</button>
           ))}
@@ -689,7 +956,13 @@ function StyleEditor({ style, onChange }: { style: CaptionStyle; onChange: (s: C
           <option value="pop">Pop / Bounce</option>
           <option value="fade">Smooth Fade In</option>
           <option value="slide">Slide Up</option>
+          <option value="karaoke">🎤 Karaoke (word-by-word)</option>
         </select>
+        {style.animation === 'karaoke' && (
+          <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.3rem' }}>
+            Each word lights up as it's spoken. Requires Whisper transcription with word timestamps.
+          </p>
+        )}
       </Section>
       <Section label="Font">
         <select value={style.fontFamily} onChange={e => set('fontFamily', e.target.value)} style={sel}>
@@ -697,7 +970,7 @@ function StyleEditor({ style, onChange }: { style: CaptionStyle; onChange: (s: C
         </select>
       </Section>
       <Section label={`Size: ${style.fontSize}px`}>
-        <input type="range" min={16} max={64} value={style.fontSize} onChange={e => set('fontSize', +e.target.value)} style={{ width: '100%' }} />
+        <input type="range" min={16} max={120} value={style.fontSize} onChange={e => set('fontSize', +e.target.value)} style={{ width: '100%' }} />
       </Section>
       <Section label="Highlight Style">
         <select value={style.colorStyle || 'first'} onChange={e => set('colorStyle', e.target.value as any)} style={sel}>
@@ -719,7 +992,7 @@ function StyleEditor({ style, onChange }: { style: CaptionStyle; onChange: (s: C
           <button onClick={() => set('bgOpacity', 0)} style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', border: '1px solid var(--border-color)', background: style.bgOpacity === 0 ? 'var(--accent)' : 'var(--bg-secondary)', color: style.bgOpacity === 0 ? '#fff' : 'var(--text-primary)' }}>Colorless</button>
         </div>
       </Section>
-      
+
       {style.bgOpacity > 0 && (
         <div style={{ padding: '0.75rem', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '-0.5rem' }}>
           <Section label="Pill Color">
@@ -756,7 +1029,9 @@ function StyleEditor({ style, onChange }: { style: CaptionStyle; onChange: (s: C
       {/* Live preview */}
       <div style={{ padding: '0.875rem', background: '#111', borderRadius: '10px', textAlign: 'center' }}>
         <span style={{ backgroundColor: `${style.bgColor}${Math.round(style.bgOpacity * 255).toString(16).padStart(2, '0')}`, padding: '4px 12px', borderRadius: '6px', fontFamily: style.fontFamily, fontSize: `${Math.min(style.fontSize, 24)}px`, fontWeight: style.bold ? 800 : 400, textShadow: style.outline ? '1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000' : 'none' }}>
-          {style.colorStyle === 'first' || (style as any).highlightFirst === true ? <><span style={{ color: style.highlightColor }}>Hello</span><span style={{ color: style.textColor }}> cool caption</span></>
+          {style.animation === 'karaoke'
+            ? <><span style={{ color: style.highlightColor }}>Hello</span> <span style={{ color: style.textColor }}>cool caption</span></>
+            : style.colorStyle === 'first' || (style as any).highlightFirst === true ? <><span style={{ color: style.highlightColor }}>Hello</span><span style={{ color: style.textColor }}> cool caption</span></>
             : style.colorStyle === 'alternate' ? <><span style={{ color: style.highlightColor }}>Hello</span> <span style={{ color: style.textColor }}>cool</span> <span style={{ color: style.highlightColor }}>caption</span></>
             : style.colorStyle === 'random' ? <><span style={{ color: style.textColor }}>Hello</span> <span style={{ color: style.highlightColor }}>cool</span> <span style={{ color: style.textColor }}>caption</span></>
             : <span style={{ color: style.textColor }}>Hello cool caption</span>}
@@ -791,39 +1066,48 @@ function fmt(s: number): string {
 }
 
 function buildASS(captions: Caption[], s: CaptionStyle): string {
-  const bgr = (hex: string) => { 
+  const bgr = (hex: string) => {
     if (!hex) return 'FFFFFF'
     const r = hex.slice(1, 3), g = hex.slice(3, 5), b = hex.slice(5, 7)
-    return `${b}${g}${r}`.toUpperCase() 
+    return `${b}${g}${r}`.toUpperCase()
   }
   const pos = s.position === 'bottom' ? 2 : s.position === 'center' ? 5 : 8
   const alpha = Math.round((1 - s.bgOpacity) * 255).toString(16).padStart(2, '0').toUpperCase()
-  
-  // BorderStyle 3 = Opaque Box, 1 = Outline + Shadow
+
   const borderStyle = s.bgOpacity > 0 ? '3' : '1'
   const outline = s.bgOpacity > 0 ? '4' : (s.outline ? '2' : '0')
 
-  const header = `[Script Info]\nScriptType: v4.00+\nPlayResX: 1280\nPlayResY: 720\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,${s.fontFamily},${s.fontSize * 2},&H00${bgr(s.textColor)},&H000000FF,&H00000000,&H${alpha}${bgr(s.bgColor)},${s.bold ? '-1' : '0'},0,0,0,100,100,0,0,${borderStyle},${outline},0,${pos},60,60,40,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n`
-  
-  const ft = (sec: number) => { 
+  const header = `[Script Info]\nScriptType: v4.00+\nPlayResX: 1280\nPlayResY: 720\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,${s.fontFamily},${s.fontSize},&H00${bgr(s.textColor)},&H00${bgr(s.highlightColor)},&H00000000,&H${alpha}${bgr(s.bgColor)},${s.bold ? '-1' : '0'},0,0,0,100,100,0,0,${borderStyle},${outline},0,${pos},60,60,40,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n`
+
+  const ft = (sec: number) => {
     const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s2 = (sec % 60).toFixed(2)
-    return `${h}:${String(m).padStart(2, '0')}:${String(s2).padStart(5, '0')}` 
+    return `${h}:${String(m).padStart(2, '0')}:${String(s2).padStart(5, '0')}`
   }
 
-  const formatText = (text: string) => {
-    let animTag = ''
-    const anchorY = s.position === 'bottom' ? 680 : s.position === 'center' ? 360 : 40
-    
-    if (s.animation === 'fade') animTag = '{\\fad(250,0)\\fscx92\\fscy92\\t(0,250,\\fscx100\\fscy100)}' // Cinematic zoom fade
-    else if (s.animation === 'pop') animTag = '{\\fscx40\\fscy40\\t(0,100,\\fscx115\\fscy115)\\t(100,200,\\fscx100\\fscy100)}' // Aggressive pop
-    else if (s.animation === 'slide') animTag = `{\\move(640,${anchorY + 25},640,${anchorY},0,200)\\fad(150,0)}` // True literal slide up
-
-    const cs = s.colorStyle || ((s as any).highlightFirst ? 'first' : 'uniform')
-    if (cs === 'uniform') return animTag + text
-    
+  const formatText = (cap: Caption) => {
+    const text = cap.text
     const words = text.split(' ')
+    const anchorY = s.position === 'bottom' ? 680 : s.position === 'center' ? 360 : 40
+
+    // Karaoke mode: use \kf tags for word-by-word fill animation
+    if (s.animation === 'karaoke' && cap.words && cap.words.length > 0) {
+      const karaokeText = cap.words.map(w => {
+        const durCs = Math.round((w.end - w.start) * 100)
+        return `{\\kf${durCs}}${w.word}`
+      }).join(' ')
+      return `{\\1c&H${bgr(s.textColor)}&\\2c&H${bgr(s.highlightColor)}&}` + karaokeText
+    }
+
+    let animTag = ''
+    if (s.animation === 'fade') animTag = '{\\fad(250,0)\\fscx92\\fscy92\\t(0,250,\\fscx100\\fscy100)}'
+    else if (s.animation === 'pop') animTag = '{\\fscx40\\fscy40\\t(0,100,\\fscx115\\fscy115)\\t(100,200,\\fscx100\\fscy100)}'
+    else if (s.animation === 'slide') animTag = `{\\move(640,${anchorY + 25},640,${anchorY},0,200)\\fad(150,0)}`
+
+    const cs = s.colorStyle
+    if (cs === 'uniform') return animTag + text
+
     if (words.length <= 1) return `${animTag}{\\c&H${bgr(s.highlightColor)}&}${text}`
-    
+
     if (cs === 'first') return `${animTag}{\\c&H${bgr(s.highlightColor)}&}${words[0]}{\\c&H${bgr(s.textColor)}&} ${words.slice(1).join(' ')}`
     if (cs === 'alternate') return animTag + words.map((w, i) => `{\\c&H${bgr(i % 2 === 0 ? s.highlightColor : s.textColor)}&}${w}`).join(' ')
     if (cs === 'random') {
@@ -833,7 +1117,7 @@ function buildASS(captions: Caption[], s: CaptionStyle): string {
     return animTag + text
   }
 
-  return header + captions.map(c => `Dialogue: 0,${ft(c.start)},${ft(c.end)},Default,,0,0,0,,${formatText(c.text)}`).join('\n')
+  return header + captions.map(c => `Dialogue: 0,${ft(c.start)},${ft(c.end)},Default,,0,0,0,,${formatText(c)}`).join('\n')
 }
 
 const sel: React.CSSProperties = {

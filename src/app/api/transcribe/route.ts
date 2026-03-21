@@ -6,13 +6,12 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData()
     const file = formData.get('file') as File | null
+    const language = (formData.get('language') as string | null) || null
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    // Check duration via file size proxy — 5 min at ~1MB/min for audio = 5MB rough limit
-    // We'll enforce this on the client too.
     const maxBytes = 25 * 1024 * 1024 // 25MB limit for audio
     if (file.size > maxBytes) {
       return NextResponse.json({ error: 'Audio too large. Please use a shorter video (max 5 mins).' }, { status: 400 })
@@ -20,11 +19,14 @@ export async function POST(req: NextRequest) {
 
     const arrayBuffer = await file.arrayBuffer()
     const base64 = Buffer.from(arrayBuffer).toString('base64')
-    // Accept audio/webm from client-side extraction, or fallback to video
     const mimeType = file.type && file.type !== 'application/octet-stream' ? file.type : 'audio/webm'
 
+    const langHint = language && language !== 'auto'
+      ? `The spoken language is ${language}. `
+      : 'Auto-detect the spoken language. '
+
     const prompt = `You are a professional video transcription engine.
-Transcribe ALL spoken words from this video/audio file.
+${langHint}Transcribe ALL spoken words from this video/audio file.
 Return ONLY a JSON array of caption segments. Each segment should be 3-7 words max for readability.
 Format: [{"text": "Hello everyone welcome back", "start": 0.0, "end": 1.8}, ...]
 - "start" and "end" are timestamps in seconds.
@@ -68,7 +70,6 @@ Format: [{"text": "Hello everyone welcome back", "start": 0.0, "end": 1.8}, ...]
     const data = await res.json()
     const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]'
 
-    // Extract JSON from the response (strip any markdown fences)
     const jsonMatch = rawText.match(/\[[\s\S]*\]/)
     if (!jsonMatch) {
       return NextResponse.json({ error: 'Could not parse transcription', raw: rawText }, { status: 500 })

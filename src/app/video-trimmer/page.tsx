@@ -130,16 +130,29 @@ export default function VideoTrimmer() {
         wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
       })
 
-      await ffmpeg.writeFile('input.mp4', await fetchFile(file))
-      
-      // Fast trim using `-c copy`. 
-      // Accuracy is tied to keyframes. If they want exact frame accuracy, we'd remove `-c copy`, 
-      // but re-encoding in WASM is extremely slow. We provide the fast cut version.
+      // Preserve the real file extension so FFmpeg picks the correct demuxer.
+      // Writing a .webm or .mov as "input.mp4" confuses the container parser and
+      // can produce broken output streams (black video, no audio, etc.).
+      const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : 'mp4'
+      const inputName = `input.${ext}`
+      await ffmpeg.writeFile(inputName, await fetchFile(file))
+
+      // Fast trim using `-c copy`.
+      // `-ss` must come BEFORE `-i` (input seeking) so FFmpeg seeks to the nearest keyframe
+      // before startTime. If placed after `-i`, middle/end segments get wrong PTS values,
+      // causing a black screen until the next keyframe (audio still plays fine).
+      // We use `-t` (duration) instead of `-to` (end time) because `-to` is relative to the
+      // input file when using input seeking, not the output.
+      // `-movflags +faststart` moves the moov atom to the front of the MP4 so players
+      // can start decoding immediately without loading the entire file first.
+      const segDuration = seg.endTime - seg.startTime
       const code = await ffmpeg.exec([
-        '-i', 'input.mp4',
         '-ss', String(seg.startTime.toFixed(3)),
-        '-to', String(seg.endTime.toFixed(3)),
+        '-i', inputName,
+        '-t', String(segDuration.toFixed(3)),
         '-c', 'copy',
+        '-avoid_negative_ts', 'make_zero',
+        '-movflags', '+faststart',
         'output.mp4'
       ])
 
