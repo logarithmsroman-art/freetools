@@ -83,6 +83,58 @@ const PRESETS: { name: string; style: CaptionStyle }[] = [
 // Module-level FFmpeg cache to avoid re-loading 30MB WASM on every export
 let ffmpegCache: { instance: any; ready: boolean } | null = null
 
+// ─── IndexedDB helpers for video persistence ──────────────────────────────────
+const IDB_NAME = 'autocaption-db'
+const IDB_STORE = 'videos'
+const IDB_KEY = 'current-video'
+
+function idbOpen(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1)
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE)
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function idbSave(file: File): Promise<void> {
+  try {
+    const db = await idbOpen()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite')
+      tx.objectStore(IDB_STORE).put({ blob: file, name: file.name, type: file.type }, IDB_KEY)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  } catch { /* silent — video just won't persist */ }
+}
+
+async function idbLoad(): Promise<File | null> {
+  try {
+    const db = await idbOpen()
+    return new Promise((resolve) => {
+      const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(IDB_KEY)
+      req.onsuccess = () => {
+        const val = req.result
+        resolve(val ? new File([val.blob], val.name, { type: val.type }) : null)
+      }
+      req.onerror = () => resolve(null)
+    })
+  } catch { return null }
+}
+
+async function idbClear(): Promise<void> {
+  try {
+    const db = await idbOpen()
+    await new Promise<void>((resolve) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite')
+      tx.objectStore(IDB_STORE).delete(IDB_KEY)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => resolve()
+    })
+  } catch { /* silent */ }
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function AutoCaption() {
   const [step, setStep] = useState<'upload' | 'extracting' | 'transcribing' | 'edit' | 'exporting'>('upload')
@@ -97,8 +149,10 @@ export default function AutoCaption() {
   const [currentTime, setCurrentTime] = useState(0)
   const [language, setLanguage] = useState<string>('auto')
   const [exportQuality, setExportQuality] = useState<'fast' | 'balanced' | 'high'>('balanced')
-  const [engineUsed, setEngineUsed] = useState<string | null>(null)
   const [transcribingStatus, setTranscribingStatus] = useState<string>('')
+  const [showInterstitial, setShowInterstitial] = useState(false)
+  const [interstitialCountdown, setInterstitialCountdown] = useState(15)
+  const [canSkip, setCanSkip] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -111,6 +165,16 @@ export default function AutoCaption() {
       if (videoUrl) URL.revokeObjectURL(videoUrl)
       if (downloadUrl) URL.revokeObjectURL(downloadUrl)
     }
+  }, [])
+
+  // ── Restore video from IndexedDB on mount (survives page refresh) ──────────
+  useEffect(() => {
+    idbLoad().then(file => {
+      if (file) {
+        setVideoFile(file)
+        setVideoUrl(URL.createObjectURL(file))
+      }
+    })
   }, [])
 
   // ── Video timeupdate listener ──────────────────────────────────────────────
@@ -143,6 +207,26 @@ export default function AutoCaption() {
     return () => { document.body.style.overflow = '' }
   }, [isFullscreen])
 
+  // ── Interstitial ad countdown ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!showInterstitial) return
+    if (interstitialCountdown <= 0) {
+      setShowInterstitial(false)
+      transcribe()
+      return
+    }
+    if (interstitialCountdown <= 10) setCanSkip(true)
+    const t = setTimeout(() => setInterstitialCountdown(c => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [showInterstitial, interstitialCountdown])
+
+  // ── Show interstitial before transcription ────────────────────────────────
+  const handleTranscribeClick = () => {
+    setShowInterstitial(true)
+    setInterstitialCountdown(15)
+    setCanSkip(false)
+  }
+
   // ── Toggle fullscreen ──────────────────────────────────────────────────────
   const toggleFullscreen = () => {
     const el = containerRef.current
@@ -161,13 +245,13 @@ export default function AutoCaption() {
 
   // ── Upload ─────────────────────────────────────────────────────────────────
   const handleUpload = (f: File | null) => {
-    if (!f) { setVideoFile(null); setVideoUrl(null); return }
+    if (!f) { setVideoFile(null); setVideoUrl(null); idbClear(); return }
     setError(null)
     setVideoFile(f)
     setVideoUrl(URL.createObjectURL(f))
     setDownloadUrl(null)
     setCaptions([])
-    setEngineUsed(null)
+    idbSave(f)
   }
 
   // ── 1. Extract audio using decodeAudioData (reads entire file) ────────────
@@ -203,45 +287,27 @@ export default function AutoCaption() {
     return new Blob([buf], { type: 'audio/wav' })
   }
 
-  // ── 2. Transcribe: Whisper primary, Gemini fallback ───────────────────────
+  // ── 2. Transcribe ─────────────────────────────────────────────────────────
   const transcribe = async (existingVideoFile?: File | null) => {
     const file = existingVideoFile ?? videoFile
     if (!file) return
     setError(null)
-    setEngineUsed(null)
 
     try {
       setStep('extracting')
       const audioBlob = await extractAudioWav(file)
 
       setStep('transcribing')
-      setTranscribingStatus('Whisper AI is processing your audio…')
+      setTranscribingStatus('AI is processing your audio…')
 
       const fd = new FormData()
       fd.append('file', audioBlob, 'audio.wav')
       fd.append('language', language)
       fd.append('chunkSize', '4')
 
-      let data: any = null
-      let usedEngine = 'Whisper'
-
       const whisperRes = await fetch('/api/whisper', { method: 'POST', body: fd })
-      const whisperData = await whisperRes.json()
-
-      if (!whisperRes.ok || whisperData.error) {
-        // Fallback to Gemini
-        setTranscribingStatus('Switching to backup engine…')
-        usedEngine = 'Gemini'
-        const fd2 = new FormData()
-        fd2.append('file', audioBlob, 'audio.webm')
-        fd2.append('language', language)
-        const geminiRes = await fetch('/api/transcribe', { method: 'POST', body: fd2 })
-        const geminiData = await geminiRes.json()
-        if (!geminiRes.ok || geminiData.error) throw new Error(geminiData.error || 'Transcription failed')
-        data = geminiData
-      } else {
-        data = whisperData
-      }
+      const data = await whisperRes.json()
+      if (!whisperRes.ok || data.error) throw new Error(data.error || 'Transcription failed')
 
       const caps: Caption[] = data.captions.map((c: any, i: number) => ({
         id: `cap-${i}`,
@@ -251,7 +317,6 @@ export default function AutoCaption() {
         words: c.words,
       }))
       setCaptions(caps)
-      setEngineUsed(usedEngine)
       setStep('edit')
     } catch (e: any) {
       setError(e.message)
@@ -291,9 +356,9 @@ export default function AutoCaption() {
     setStep('exporting'); setExportProgress(5)
 
     const qualityMap = {
-      fast:     ['-preset', 'ultrafast', '-crf', '28'],
-      balanced: ['-preset', 'fast',      '-crf', '23'],
-      high:     ['-preset', 'medium',    '-crf', '18'],
+      fast:     ['-preset', 'ultrafast', '-crf', '28', '-threads', '0'],
+      balanced: ['-preset', 'veryfast',  '-crf', '24', '-threads', '0'],
+      high:     ['-preset', 'fast',      '-crf', '18', '-threads', '0'],
     }
 
     try {
@@ -304,11 +369,26 @@ export default function AutoCaption() {
       if (!ffmpegCache || !ffmpegCache.ready) {
         const ffmpeg = new FFmpeg()
         ffmpeg.on('progress', ({ progress }) => setExportProgress(Math.round(progress * 100)))
-        const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd'
-        await ffmpeg.load({
-          coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
-          wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
-        })
+        // Try multi-threaded core first (3–6× faster), fall back to single-threaded
+        let loaded = false
+        try {
+          const mtBase = 'https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm'
+          await ffmpeg.load({
+            coreURL: await toBlobURL(`${mtBase}/ffmpeg-core.js`, 'text/javascript'),
+            wasmURL: await toBlobURL(`${mtBase}/ffmpeg-core.wasm`, 'application/wasm'),
+            workerURL: await toBlobURL(`${mtBase}/ffmpeg-core.worker.js`, 'text/javascript'),
+          })
+          loaded = true
+        } catch {
+          // MT failed — fall back to single-threaded
+        }
+        if (!loaded) {
+          const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd'
+          await ffmpeg.load({
+            coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+            wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+          })
+        }
         ffmpegCache = { instance: ffmpeg, ready: true }
       } else {
         // Re-attach progress listener to existing instance
@@ -345,9 +425,63 @@ export default function AutoCaption() {
   // ── Active caption resolve ─────────────────────────────────────────────────
   const activeCaption = captions.find(c => currentTime >= c.start && currentTime <= c.end) || null
 
+  // ── Interstitial overlay ───────────────────────────────────────────────────
+  if (showInterstitial) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(0,0,0,0.92)',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: '1.25rem',
+        padding: '1.5rem',
+      }}>
+        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Sponsored · Keeps this tool free
+        </p>
+
+        {/* ── AD SLOT: replace placeholder with Monetag / AdSense video code ── */}
+        <div style={{
+          width: '300px', height: '250px', background: '#111',
+          border: '1px solid #333', borderRadius: '10px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {/* PASTE YOUR MONETAG OR ADSENSE VIDEO AD CODE HERE */}
+          <p style={{ color: '#444', fontSize: '0.7rem' }}>Advertisement</p>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+          {canSkip ? (
+            <button
+              onClick={() => { setShowInterstitial(false); transcribe() }}
+              style={{
+                padding: '0.6rem 2rem', borderRadius: '8px', border: 'none',
+                background: 'var(--accent)', color: '#fff', fontWeight: 700,
+                fontSize: '0.9rem', cursor: 'pointer',
+              }}
+            >
+              Skip Ad → Generate Captions
+            </button>
+          ) : (
+            <div style={{
+              width: '44px', height: '44px', borderRadius: '50%',
+              border: '3px solid rgba(255,255,255,0.2)',
+              borderTop: '3px solid #fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{ color: '#fff', fontWeight: 800, fontSize: '1rem' }}>{interstitialCountdown}</span>
+            </div>
+          )}
+          <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.7rem' }}>
+            {canSkip ? 'Your caption is ready to generate' : `Your caption generates in ${interstitialCountdown}s`}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   // ── Loading screens ────────────────────────────────────────────────────────
   if (step === 'upload') {
-    return <UploadStep videoUrl={videoUrl} videoFile={videoFile} onUpload={handleUpload} onTranscribe={() => transcribe()} error={error} language={language} onLanguageChange={setLanguage} />
+    return <UploadStep videoUrl={videoUrl} videoFile={videoFile} onUpload={handleUpload} onTranscribe={handleTranscribeClick} error={error} language={language} onLanguageChange={setLanguage} />
   }
   if (step === 'extracting' || step === 'transcribing') {
     return <LoadingStep stage={step} status={transcribingStatus} />
@@ -355,17 +489,12 @@ export default function AutoCaption() {
 
   // ── Edit View ──────────────────────────────────────────────────────────────
   return (
-    <main style={{ padding: '1.5rem 0', maxWidth: '1200px', margin: '0 auto' }}>
+    <main style={{ padding: '1.5rem 0 6rem', maxWidth: '1200px', margin: '0 auto' }}>
       <BackButton />
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
         <h1 style={{ fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.5px', margin: 0 }}>
           ✨ AI Auto-Caption Editor
         </h1>
-        {engineUsed && (
-          <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '999px', background: engineUsed === 'Whisper' ? '#dbeafe' : '#dcfce7', color: engineUsed === 'Whisper' ? '#1d4ed8' : '#15803d', fontWeight: 700 }}>
-            {engineUsed === 'Whisper' ? '🎙️ Whisper' : '🤖 Gemini'} · {language === 'auto' ? 'Auto-detected' : LANGUAGES.find(l => l.code === language)?.label ?? language}
-          </span>
-        )}
       </div>
       <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
         Edit captions, style them, then export.
@@ -436,6 +565,9 @@ export default function AutoCaption() {
                     <div style={{ height: '100%', background: 'var(--accent)', width: `${exportProgress}%`, transition: 'width 0.3s ease' }} />
                   </div>
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.4rem', textAlign: 'center' }}>Exporting… {exportProgress}%</p>
+                  <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center' }}>
+                    <AdSlot format="rectangle" />
+                  </div>
                 </div>
               )}
               {downloadUrl && (
@@ -448,7 +580,7 @@ export default function AutoCaption() {
                 style={{ padding: '0 1rem', height: '2.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                 ↺ Re-transcribe
               </button>
-              <button onClick={() => { setStep('upload'); setVideoFile(null); setVideoUrl(null); setDownloadUrl(null); setCaptions([]) }}
+              <button onClick={() => { setStep('upload'); setVideoFile(null); setVideoUrl(null); setDownloadUrl(null); setCaptions([]); idbClear() }}
                 style={{ padding: '0 1rem', height: '2.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
                 New Video
               </button>
@@ -486,6 +618,16 @@ export default function AutoCaption() {
             <StyleEditor style={style} onChange={setStyle} />
           )}
         </div>
+      </div>
+
+      {/* ── Sticky bottom ad banner (visible during entire editing session) ── */}
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0,
+        display: 'flex', justifyContent: 'center', alignItems: 'center',
+        background: 'var(--bg-primary)', borderTop: '1px solid var(--border-color)',
+        padding: '6px 0', zIndex: 100,
+      }}>
+        <AdSlot format="leaderboard" />
       </div>
 
       <style>{`
@@ -541,6 +683,36 @@ export default function AutoCaption() {
         }
       `}</style>
     </main>
+  )
+}
+
+// ─── Ad Slot ──────────────────────────────────────────────────────────────────
+// Replace the inner div comment with your Google AdSense <ins> tag once approved.
+// All ads use target="_blank" so clicking never navigates away from this page.
+function AdSlot({ format }: { format: 'rectangle' | 'leaderboard' | 'banner' }) {
+  const sizes: Record<string, React.CSSProperties> = {
+    rectangle:  { width: '300px', height: '250px' },
+    leaderboard:{ width: '100%', maxWidth: '728px', height: '90px' },
+    banner:     { width: '320px', height: '50px' },
+  }
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', background: 'var(--bg-secondary)',
+      border: '1px dashed var(--border-color)', borderRadius: '8px',
+      overflow: 'hidden', ...sizes[format],
+    }}>
+      {/* ── REPLACE THIS BLOCK WITH YOUR ADSENSE CODE ──
+          <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossOrigin="anonymous"></script>
+          <ins className="adsbygoogle" style={{display:'block'}}
+            data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
+            data-ad-slot="XXXXXXXXXX"
+            data-ad-format="auto"
+            data-full-width-responsive="true"></ins>
+          <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+      ── */}
+      <p style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', margin: 0 }}>Advertisement</p>
+    </div>
   )
 }
 
@@ -849,7 +1021,7 @@ function UploadStep({ videoUrl, videoFile, onUpload, onTranscribe, error, langua
               ✨ Generate AI Captions
             </button>
             <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.65rem' }}>
-              Whisper AI · 30+ languages · ~1–2 min for long videos
+              30+ languages · ~1–2 min for long videos
             </p>
           </div>
         )}
@@ -931,6 +1103,15 @@ function LoadingStep({ stage, status }: { stage: 'extracting' | 'transcribing'; 
           </div>
         ))}
       </div>
+
+      {/* Show ad during transcription — user is idle for 30–90s, guaranteed impression */}
+      {stage === 'transcribing' && (
+        <div style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+          <p style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Sponsored</p>
+          <AdSlot format="rectangle" />
+        </div>
+      )}
+
       <style>{`@keyframes wv{0%,100%{transform:scaleY(0.4)}50%{transform:scaleY(1)}}`}</style>
     </main>
   )
@@ -962,7 +1143,7 @@ function StyleEditor({ style, onChange }: { style: CaptionStyle; onChange: (s: C
         </select>
         {style.animation === 'karaoke' && (
           <p style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.3rem' }}>
-            Each word lights up as it's spoken. Requires Whisper transcription with word timestamps.
+            Each word lights up as it's spoken. Requires AI transcription with word timestamps.
           </p>
         )}
       </Section>
