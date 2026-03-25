@@ -26,16 +26,23 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
 import AnalyticsTracker from "@/components/AnalyticsTracker";
 import ToolWrapper from "@/components/ToolWrapper";
+import { createClient } from "@/utils/supabase/server";
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  const isAdmin = !!user
+
   return (
     <html lang="en">
       <head>
-        <script src="https://quge5.com/88/tag.min.js" data-zone="222281" async data-cfasync="false"></script>
+        {!isAdmin && (
+          <script src="https://quge5.com/88/tag.min.js" data-zone="222281" async data-cfasync="false"></script>
+        )}
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <ThemeProvider>
